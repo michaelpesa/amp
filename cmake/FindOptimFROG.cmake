@@ -1,0 +1,17 @@
+
+find_path(OPTIMFROG_INCLUDE_DIR OptimFROG/OptimFROG.h)
+find_library(OPTIMFROG_LIBRARY OptimFROG)
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(OPTIMFROG
+    REQUIRED_VARS OPTIMFROG_LIBRARY OPTIMFROG_INCLUDE_DIR)
+
+mark_as_advanced(OPTIMFROG_INCLUDE_DIR OPTIMFROG_LIBRARY)
+
+if(OPTIMFROG_FOUND AND NOT TARGET OptimFROG::OptimFROG)
+    add_library(OptimFROG::OptimFROG UNKNOWN IMPORTED)
+    set_target_properties(OptimFROG::OptimFROG PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES ${OPTIMFROG_INCLUDE_DIR}
+        IMPORTED_LOCATION ${OPTIMFROG_LIBRARY})
+endif()
+

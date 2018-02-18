@@ -1,0 +1,10 @@
+<!DOCTYPE RCC><RCC version="1.0">
+    <qresource>
+        <file>icons/play.svgz</file>
+        <file>icons/pause.svgz</file>
+        <file>icons/stop.svgz</file>
+        <file>icons/next.svgz</file>
+        <file>icons/prev.svgz</file>
+    </qresource>
+</RCC>
+

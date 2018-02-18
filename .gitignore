@@ -1,0 +1,12 @@
+*~
+*.DS_Store
+*.a
+*.o
+*.orig
+*.pch
+*.pyc
+
+Makefile
+build/
+contrib/
+
