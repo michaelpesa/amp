@@ -12,11 +12,11 @@
 #include <amp/aux/map_value_compare.hpp>
 #include <amp/cxp/string.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 
 #include <algorithm>
 #include <cstddef>
 #include <functional>
+#include <string_view>
 
 
 namespace amp {
@@ -129,7 +129,7 @@ constexpr bool is_sorted(cxp::map<Key, T, N, Compare> const& m)
 {
     using value_compare =
         conditional_t<
-            is_same_v<Key, char const*> || is_same_v<Key, string_view>,
+            is_same_v<Key, char const*> || is_same_v<Key, std::string_view>,
             map_value_compare<Key, T, cxp::strcmp_less>,
             map_value_compare<Key, T, Compare>
         >;

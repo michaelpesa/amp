@@ -9,7 +9,6 @@
 #include <amp/net/uri.hpp>
 #include <amp/scope_guard.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 #include <amp/utility.hpp>
 

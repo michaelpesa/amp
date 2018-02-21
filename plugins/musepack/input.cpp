@@ -25,6 +25,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <memory>
+#include <string_view>
 #include <utility>
 
 #include <mpc/mpcdec.h>
@@ -210,13 +211,13 @@ auto input::get_info(uint32 const number)
         id3v1::read(*file, info.tags);
     }
 
-    auto insert_gain = [&](string_view const key, uint16 const x) {
+    auto insert_gain = [&](std::string_view const key, uint16 const x) {
         if (x != 0) {
             auto const gain = 64.82 - (x / 256.0);
             info.tags.insert_or_assign(key, u8format("%1.2f dB", gain));
         }
     };
-    auto insert_peak = [&](string_view const key, uint16 const x) {
+    auto insert_peak = [&](std::string_view const key, uint16 const x) {
         if (x != 0) {
             auto const peak = audio::to_amplitude(x / 256.0) / (1 << 15);
             info.tags.insert_or_assign(key, u8format("%.6f", peak));

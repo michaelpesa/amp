@@ -5,7 +5,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-#include <amp/audio/channel_mapper.hpp>
 #include <amp/audio/codec.hpp>
 #include <amp/audio/format.hpp>
 #include <amp/audio/input.hpp>
@@ -22,13 +21,13 @@
 #include <amp/range.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 #include <amp/utility.hpp>
 
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <string_view>
 #include <utility>
 
 #include <opus/opusfile.h>
@@ -148,7 +147,7 @@ inline auto open(io::stream& file)
 }
 
 
-inline optional<int32> parse_fixed_point_gain(string_view s) noexcept
+inline optional<int32> parse_fixed_point_gain(std::string_view s) noexcept
 {
     if (s.empty()) {
         return nullopt;
@@ -204,23 +203,21 @@ public:
     auto get_chapter_count() const noexcept;
 
 private:
+    void on_link_changed_(int);
+
     ref_ptr<io::stream> file;
     std::unique_ptr<::OggOpusFile> handle;
-    std::unique_ptr<audio::channel_mapper> remap;
+    uint8 const* mapping;
     uint32 channels;
+    int link;
 };
 
 input::input(ref_ptr<io::stream> s, audio::open_mode) :
     file(std::move(s)),
-    handle(opus::open(*file)),
-    channels(opus::check(::op_channel_count(handle.get(), -1)))
+    handle(opus::open(*file))
 {
     opus::check(::op_set_gain_offset(handle.get(), OP_ABSOLUTE_GAIN, 0));
-
-    if (channels > 2 && channels != 4) {
-        auto const mapping = audio::xiph_channel_map(channels);
-        remap = audio::channel_mapper::create(mapping);
-    }
+    on_link_changed_(-1);
 }
 
 void input::read(audio::packet& pkt)
@@ -230,15 +227,28 @@ void input::read(audio::packet& pkt)
     pkt.resize(5760 * channels);
     auto const samples = static_cast<int>(pkt.samples());
 
-    int ret;
-    do { ret = ::op_read_float(handle.get(), pkt.data(), samples, nullptr); }
+    int ret, li;
+    do { ret = ::op_read_float(handle.get(), pkt.data(), samples, &li); }
     while (AMP_UNLIKELY(ret == OP_HOLE));
+
+    if (link != li) {
+        on_link_changed_(li);
+    }
 
     auto const frames = opus::check(ret);
     pkt.resize(frames * channels);
 
-    if (remap) {
-        remap->process(pkt);
+    if (mapping != nullptr) {
+        float tmp[8];
+        auto const last = pkt.end();
+        for (auto first = pkt.begin(); first != last; ) {
+            for (auto const i : xrange(channels)) {
+                tmp[mapping[i]] = first[i];
+            }
+            for (auto const i : xrange(channels)) {
+                *first++ = tmp[i];
+            }
+        }
     }
 
     auto const instant_bit_rate = ::op_bitrate_instant(handle.get());
@@ -250,6 +260,7 @@ void input::read(audio::packet& pkt)
 void input::seek(uint64 const frame)
 {
     opus::check(::op_pcm_seek(handle.get(), numeric_cast<int64>(frame)));
+    on_link_changed_(::op_current_link(handle.get()));
 }
 
 auto input::get_format() const noexcept
@@ -267,7 +278,7 @@ auto input::get_info(uint32 const number)
     info.codec_id = audio::codec::opus;
     info.props.emplace(tags::container, "Ogg");
 
-    auto const link = static_cast<int32>(number) - 1;
+    on_link_changed_(static_cast<int>(number - 1));
     info.average_bit_rate = check(::op_bitrate(handle.get(), link));
     info.frames = check(::op_pcm_total(handle.get(), link));
 
@@ -287,7 +298,7 @@ auto input::get_info(uint32 const number)
             }
 
             auto const len = as_unsigned(tags->comment_lengths[i]);
-            auto const str = string_view{tags->user_comments[i], len};
+            auto const str = std::string_view{tags->user_comments[i], len};
             auto const sep = str.find('=');
             if (sep >= str.size()) {
                 continue;
@@ -337,7 +348,7 @@ auto input::get_image(media::image_type const type)
 
     media::image image;
     for (auto const i : xrange(n)) {
-        string_view const block{::opus_tags_query(tags, key, i)};
+        std::string_view const block{::opus_tags_query(tags, key, i)};
         io::buffer buf{base64::decoded_size(block), uninitialized};
         base64::decode(block.data(), block.size(), buf.data());
 
@@ -357,8 +368,32 @@ auto input::get_image(media::image_type const type)
 
 auto input::get_chapter_count() const noexcept
 {
-    auto const links = ::op_link_count(handle.get());
-    return (links > 1) ? static_cast<uint32>(links) : 0;
+    auto const count = ::op_link_count(handle.get());
+    return (count > 1) ? static_cast<uint32>(count) : 0;
+}
+
+void input::on_link_changed_(int const li)
+{
+    link = li;
+    channels = opus::check(::op_channel_count(handle.get(), link));
+
+    static constexpr uint8 channel_mappings[8][8] {
+        { 0 },
+        { 0, 1 },
+        { 0, 2, 1 },
+        { 0, 1, 2, 3 },
+        { 0, 2, 1, 3, 4 },
+        { 0, 2, 1, 4, 5, 3 },
+        { 0, 2, 1, 5, 6, 4, 3 },
+        { 0, 2, 1, 6, 7, 4, 5, 3 },
+    };
+
+    if (channels >= 3 && channels <= 8 && channels != 4) {
+        mapping = channel_mappings[channels - 1];
+    }
+    else {
+        mapping = nullptr;
+    }
 }
 
 AMP_REGISTER_INPUT(input, "ogg", "opus");

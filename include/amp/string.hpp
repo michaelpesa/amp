@@ -12,11 +12,11 @@
 #include <amp/aux/operators.hpp>
 #include <amp/range.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <string_view>
 
 #if !__has_builtin(__builtin_strcasecmp) \
  || !__has_builtin(__builtin_strncasecmp)
@@ -88,8 +88,8 @@ AMP_INLINE int stricmp(char const* const s1, std::size_t const n1,
 }
 
 AMP_READONLY
-AMP_INLINE int stricmp(string_view const s1,
-                       string_view const s2) noexcept
+AMP_INLINE int stricmp(std::string_view const s1,
+                       std::string_view const s2) noexcept
 {
     return stricmp(s1.data(), s1.size(),
                    s2.data(), s2.size());
@@ -119,8 +119,8 @@ AMP_INLINE bool stricmpeq(char const* const s1, std::size_t const n1,
 }
 
 AMP_READONLY
-AMP_INLINE bool stricmpeq(string_view const s1,
-                          string_view const s2) noexcept
+AMP_INLINE bool stricmpeq(std::string_view const s1,
+                          std::string_view const s2) noexcept
 {
     return stricmpeq(s1.data(), s1.size(),
                      s2.data(), s2.size());
@@ -136,17 +136,17 @@ struct stricmp_less
 
     AMP_READONLY
     AMP_INLINE bool operator()(char const* const x,
-                               string_view const y) const noexcept
+                               std::string_view const y) const noexcept
     { return (stricmp(x, y.data(), y.size()) < 0); }
 
     AMP_READONLY
-    AMP_INLINE bool operator()(string_view const x,
+    AMP_INLINE bool operator()(std::string_view const x,
                                char const* const y) const noexcept
     { return (stricmp(x.data(), y, x.size()) < 0); }
 
     AMP_READONLY
-    AMP_INLINE bool operator()(string_view const x,
-                               string_view const y) const noexcept
+    AMP_INLINE bool operator()(std::string_view const x,
+                               std::string_view const y) const noexcept
     { return (stricmp(x, y) < 0); }
 };
 
@@ -160,13 +160,13 @@ class token_iterator_ :
 public:
     using iterator_category = std::forward_iterator_tag;
     using difference_type   = std::ptrdiff_t;
-    using value_type        = string_view;
-    using reference         = string_view const&;
-    using pointer           = string_view const*;
+    using value_type        = std::string_view;
+    using reference         = std::string_view const&;
+    using pointer           = std::string_view const*;
 
     token_iterator_() = default;
 
-    token_iterator_(string_view const s, Delim const d) noexcept :
+    token_iterator_(std::string_view const s, Delim const d) noexcept :
         input_(s),
         delim_(d)
     {
@@ -198,15 +198,15 @@ private:
                            token_iterator_ const& y) noexcept
     { return (x.input_ == y.input_); }
 
-    string_view input_;
-    string_view token_;
-    Delim       delim_;
+    std::string_view input_;
+    std::string_view token_;
+    Delim delim_;
 };
 
 }     // namespace aux
 
 template<typename Delim>
-inline auto tokenize(string_view const str, Delim const delim) noexcept
+inline auto tokenize(std::string_view const str, Delim const delim) noexcept
 {
     return make_range(aux::token_iterator_<Delim>{str, delim},
                       aux::token_iterator_<Delim>{});

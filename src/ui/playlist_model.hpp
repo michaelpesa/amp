@@ -12,7 +12,6 @@
 #include <amp/net/uri.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 
 #include "media/track.hpp"
@@ -20,6 +19,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include <QtCore/QAbstractTableModel>
@@ -92,14 +92,14 @@ private:
 
     struct Column
     {
-        string_view key;
-        QString     name;
+        std::string_view key;
+        QString name;
     };
 
-    MediaScanner*            scanner;
+    MediaScanner* scanner;
     ref_ptr<media::playlist> playlist;
-    QUndoStack*              undo_stack;
-    std::array<Column, 5>    columns;
+    QUndoStack* undo_stack;
+    std::array<Column, 5> columns;
 };
 
 }}    // namespace amp::ui

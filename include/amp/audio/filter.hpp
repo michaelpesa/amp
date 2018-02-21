@@ -14,9 +14,9 @@
 #include <amp/intrusive/slist.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/type_traits.hpp>
 
+#include <string_view>
 #include <utility>
 
 
@@ -69,7 +69,7 @@ protected:
 class filter_factory :
     public intrusive::set_link<>,
     private less_than_comparable<filter_factory>,
-    private less_than_comparable<filter_factory, string_view>
+    private less_than_comparable<filter_factory, std::string_view>
 {
 public:
     virtual ref_ptr<filter> create() const = 0;
@@ -95,11 +95,11 @@ private:
     { return (x.id < y.id); }
 
     friend bool operator<(filter_factory const& x,
-                          string_view const& y) noexcept
+                          std::string_view const& y) noexcept
     { return (x.id < y); }
 
     friend bool operator>(filter_factory const& x,
-                          string_view const& y) noexcept
+                          std::string_view const& y) noexcept
     { return (x.id > y); }
 };
 

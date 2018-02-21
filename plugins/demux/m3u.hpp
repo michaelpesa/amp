@@ -14,13 +14,13 @@
 #include <amp/memory.hpp>
 #include <amp/net/uri.hpp>
 #include <amp/string.hpp>
-#include <amp/string_view.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
 
 #include <cmath>
 #include <cstdlib>
 #include <ratio>
+#include <string_view>
 #include <vector>
 
 
@@ -29,13 +29,13 @@ namespace m3u {
 namespace aux {
 
 [[noreturn]] inline void raise_invalid_syntax(char const* const type,
-                                              string_view const s)
+                                              std::string_view const s)
 {
     raise(errc::invalid_argument, "[M3U] invalid %s: '%.*s'",
           type, static_cast<int>(s.size()), s.data());
 }
 
-inline auto parse_integer(string_view const s)
+inline auto parse_integer(std::string_view const s)
 {
     char* end;
     auto const x = std::strtoull(s.data(), &end, 0);
@@ -46,7 +46,7 @@ inline auto parse_integer(string_view const s)
     return x;
 }
 
-inline auto parse_duration(string_view const s)
+inline auto parse_duration(std::string_view const s)
 {
     char* end;
     auto const x = std::strtod(s.data(), &end);
@@ -57,7 +57,7 @@ inline auto parse_duration(string_view const s)
     return static_cast<uint64>(std::llround(x * std::nano::den));
 }
 
-inline auto parse_quoted_string(string_view s)
+inline auto parse_quoted_string(std::string_view s)
 {
     if (s.size() < 2 || s.front() != '"' || s.back() != '"') {
         raise_invalid_syntax("quoted string", s);
@@ -74,7 +74,7 @@ inline auto parse_quoted_string(string_view s)
     return s;
 }
 
-inline bool match(string_view& x, string_view const y) noexcept
+inline bool match(std::string_view& x, std::string_view const y) noexcept
 {
     if (y.size() <= x.size()) {
         if (mem::equal(x.data(), y.data(), y.size())) {
@@ -160,7 +160,7 @@ public:
         }
     }
 
-    bool has_codec(string_view const prefix) const noexcept
+    bool has_codec(std::string_view const prefix) const noexcept
     {
         // FIXME: workaround to force selection of audio-only playlists.
 #if 0
@@ -184,11 +184,11 @@ public:
 #endif
     }
 
-    net::uri                  location;
+    net::uri location;
     std::vector<m3u::segment> segments;
-    u8string                  codecs;
-    uint64                    version{};
-    bool                      is_live{};
+    u8string codecs;
+    uint64 version{};
+    bool is_live{};
 };
 
 
@@ -231,7 +231,7 @@ public:
         }
     }
 
-    media_playlist* find_by_codec(string_view const prefix) noexcept
+    media_playlist* find_by_codec(std::string_view const prefix) noexcept
     {
         for (auto&& playlist : playlists) {
             if (playlist.has_codec(prefix)) {
@@ -242,7 +242,7 @@ public:
     }
 
 private:
-    ref_ptr<io::stream>              file;
+    ref_ptr<io::stream> file;
     std::vector<m3u::media_playlist> playlists;
 };
 

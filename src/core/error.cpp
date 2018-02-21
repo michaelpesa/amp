@@ -8,7 +8,6 @@
 #include <amp/error.hpp>
 #include <amp/scope_guard.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 
 #include <algorithm>
 #include <cstdarg>
@@ -18,6 +17,7 @@
 #include <memory>
 #include <new>
 #include <stdexcept>
+#include <string_view>
 #include <system_error>
 
 #if defined(AMP_HAS_POSIX)
@@ -96,7 +96,7 @@ void raise(errc const e, char const* const format, ...)
     }
 
     auto const n = static_cast<std::size_t>(ret);
-    auto const msg = string_view{error_message_(e)};
+    auto const msg = std::string_view{error_message_(e)};
     auto const buf = std::make_unique<char[]>(msg.size() + 2 + n);
 
     auto dst = std::copy(msg.begin(), msg.end(), buf.get());

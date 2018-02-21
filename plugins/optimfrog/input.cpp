@@ -17,11 +17,11 @@
 #include <amp/media/image.hpp>
 #include <amp/numeric.hpp>
 #include <amp/ref_ptr.hpp>
-#include <amp/string_view.hpp>
 #include <amp/type_traits.hpp>
 #include <amp/u8string.hpp>
 
 #include <memory>
+#include <string_view>
 #include <utility>
 
 #include <OptimFROG/OptimFROG.h>
@@ -30,6 +30,9 @@
 namespace amp {
 namespace ofr {
 namespace {
+
+using namespace ::std::literals;
+
 
 extern "C" {
 
@@ -118,17 +121,17 @@ struct sample_type
 
 inline sample_type get_sample_type(::OptimFROG_Info const& file_info)
 {
-    string_view const sample_type{file_info.sampleType};
+    std::string_view const sample_type{file_info.sampleType};
 
-    if (sample_type == "SINT8"_sv)  { return {1, true}; }
-    if (sample_type == "SINT16"_sv) { return {2, true}; }
-    if (sample_type == "SINT24"_sv) { return {3, true}; }
-    if (sample_type == "SINT32"_sv) { return {4, true}; }
+    if (sample_type == "SINT8"sv)  { return {1, true}; }
+    if (sample_type == "SINT16"sv) { return {2, true}; }
+    if (sample_type == "SINT24"sv) { return {3, true}; }
+    if (sample_type == "SINT32"sv) { return {4, true}; }
 
-    if (sample_type == "UINT8"_sv)  { return {1, false}; }
-    if (sample_type == "UINT16"_sv) { return {2, false}; }
-    if (sample_type == "UINT24"_sv) { return {3, false}; }
-    if (sample_type == "UINT32"_sv) { return {4, false}; }
+    if (sample_type == "UINT8"sv)  { return {1, false}; }
+    if (sample_type == "UINT16"sv) { return {2, false}; }
+    if (sample_type == "UINT24"sv) { return {3, false}; }
+    if (sample_type == "UINT32"sv) { return {4, false}; }
 
     raise(errc::unsupported_format, "unsupported OptimFROG sample type: '%s'",
           file_info.sampleType);
@@ -136,12 +139,12 @@ inline sample_type get_sample_type(::OptimFROG_Info const& file_info)
 
 inline uint32 get_channel_layout(::OptimFROG_Info const& file_info) noexcept
 {
-    auto const channel_config = string_view{file_info.channelConfig};
+    std::string_view const channel_config{file_info.channelConfig};
 
-    if (channel_config == "MONO"_sv) {
+    if (channel_config == "MONO"sv) {
         return audio::channel_layout_mono;
     }
-    if (channel_config == "STEREO_LR"_sv) {
+    if (channel_config == "STEREO_LR"sv) {
         return audio::channel_layout_stereo;
     }
     return audio::guess_channel_layout(file_info.channels);

@@ -6,19 +6,20 @@
 
 
 #include <amp/crc.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 
 #include <algorithm>
 #include <cstring>
 #include <new>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 
 #include <gtest/gtest.h>
 
 
 using namespace ::amp;
+using namespace ::std::literals;
 
 
 inline u8string_rep* rep_ptr(u8string_buffer const& s) noexcept
@@ -158,8 +159,8 @@ TEST(u8string_test, compare)
     ASSERT_LT(u8string{"abcde"}.compare("abcdefg", 6), 0);
     ASSERT_GT(u8string{"abcde"}.compare("abcdefg", 4), 0);
 
-    ASSERT_GT(u8string{"ABCDE"}.compare("12345"_sv), 0);
-    ASSERT_LT(u8string{"ABCDE"}.compare("abcde"_sv), 0);
+    ASSERT_GT(u8string{"ABCDE"}.compare("12345"sv), 0);
+    ASSERT_LT(u8string{"ABCDE"}.compare("abcde"sv), 0);
 }
 
 TEST(u8string_test, resize)
@@ -223,22 +224,22 @@ TEST(u8string_test, erase_iterator_range)
     auto s = u8string_buffer{"hello, world!"};
     s.erase(s.cbegin(), s.cbegin());
 
-    ASSERT_EQ(s, "hello, world!"_sv);
+    ASSERT_EQ(s, "hello, world!"sv);
     ASSERT_EQ(s.size(), 13);
     ASSERT_EQ(s[13], '\0');
 
     s.erase(s.cbegin() + 5, s.cbegin() + 6);
-    ASSERT_EQ(s, "hello world!"_sv);
+    ASSERT_EQ(s, "hello world!"sv);
     ASSERT_EQ(s.size(), 12);
     ASSERT_EQ(s[12], '\0');
 
     s.erase(s.cbegin(), s.cbegin() + 6);
-    ASSERT_EQ(s, "world!"_sv);
+    ASSERT_EQ(s, "world!"sv);
     ASSERT_EQ(s.size(), 6);
     ASSERT_EQ(s[6], '\0');
 
     s.erase(s.cbegin(), s.cend());
-    ASSERT_EQ(s, ""_sv);
+    ASSERT_EQ(s, ""sv);
     ASSERT_EQ(s.size(), 0);
     ASSERT_EQ(rep_ptr(s), nullptr);
 }
@@ -398,13 +399,13 @@ TEST(u8string_test, is_valid_utf8_until)
 {
     // Illegal initial sequence byte 0xf5.
     {
-        auto const s = "\xe2\x98\xad\xf5\x8f\xbf\xbf"_sv;
+        auto const s = "\xe2\x98\xad\xf5\x8f\xbf\xbf"sv;
         EXPECT_EQ(is_valid_utf8_until(s.begin(), s.end()), s.begin() + 3);
     }
 
     // Unicode string with embedded null characters.
     {
-        auto const s = u8"\0Ðßþ\0爆\0発"_sv;
+        auto const s = u8"\0Ðßþ\0爆\0発"sv;
         EXPECT_EQ(is_valid_utf8_until(s.begin(), s.end()), s.end());
     }
 }
@@ -473,8 +474,8 @@ TEST(u8string_test, rfind)
 TEST(u8string_test, find_first_of)
 {
     static constexpr auto npos = u8string::npos;
-    static constexpr auto digit = "0123456789"_sv;
-    static constexpr auto lower = "abcdefghijklmnopqrstuvwxyz"_sv;
+    static constexpr auto digit = "0123456789"sv;
+    static constexpr auto lower = "abcdefghijklmnopqrstuvwxyz"sv;
 
     EXPECT_EQ(u8string{""}.find_first_of('e', 0), npos);
     EXPECT_EQ(u8string{""}.find_first_of('e', 1), npos);
@@ -498,8 +499,8 @@ TEST(u8string_test, find_first_of)
 TEST(u8string_test, find_last_of)
 {
     static constexpr auto npos = u8string::npos;
-    static constexpr auto digit = "0123456789"_sv;
-    static constexpr auto lower = "abcdefghijklmnopqrstuvwxyz"_sv;
+    static constexpr auto digit = "0123456789"sv;
+    static constexpr auto lower = "abcdefghijklmnopqrstuvwxyz"sv;
 
     EXPECT_EQ(u8string{""}.find_last_of('m', 0), npos);
     EXPECT_EQ(u8string{""}.find_last_of('m', 1), npos);
@@ -524,8 +525,8 @@ TEST(u8string_test, find_last_of)
 TEST(u8string_test, find_first_not_of)
 {
     static constexpr auto npos = u8string::npos;
-    static constexpr auto digit = "0123456789"_sv;
-    static constexpr auto lower = "abcdefghijklmnopqrstuvwxyz"_sv;
+    static constexpr auto digit = "0123456789"sv;
+    static constexpr auto lower = "abcdefghijklmnopqrstuvwxyz"sv;
 
     EXPECT_EQ(u8string{""}.find_first_not_of('q', 0), npos);
     EXPECT_EQ(u8string{""}.find_first_not_of('q', 1), npos);
@@ -554,8 +555,8 @@ TEST(u8string_test, find_first_not_of)
 TEST(u8string_test, find_last_not_of)
 {
     static constexpr auto npos = u8string::npos;
-    static constexpr auto digit = "0123456789"_sv;
-    static constexpr auto lower = "abcdefghijklmnopqrstuvwxyz"_sv;
+    static constexpr auto digit = "0123456789"sv;
+    static constexpr auto lower = "abcdefghijklmnopqrstuvwxyz"sv;
 
     EXPECT_EQ(u8string{""}.find_last_not_of('q', 0), npos);
     EXPECT_EQ(u8string{""}.find_last_not_of('q', 1), npos);

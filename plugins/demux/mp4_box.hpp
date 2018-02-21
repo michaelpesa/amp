@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <memory>
 #include <new>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -421,7 +422,7 @@ struct ilst_entry
     u8string   name;
     io::buffer data;
 
-    string_view str() const noexcept
+    std::string_view str() const noexcept
     { return {reinterpret_cast<char const*>(data.data()), data.size()}; }
 };
 

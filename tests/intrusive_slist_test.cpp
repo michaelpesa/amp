@@ -7,10 +7,10 @@
 
 #include <amp/aux/operators.hpp>
 #include <amp/intrusive/slist.hpp>
-#include <amp/string_view.hpp>
 
 #include <algorithm>
 #include <cstddef>
+#include <string_view>
 
 #include <gtest/gtest.h>
 
@@ -21,12 +21,12 @@ using namespace ::amp;
 class record :
     public intrusive::slist_link<>,
     private totally_ordered<record>,
-    private totally_ordered<record, string_view>
+    private totally_ordered<record, std::string_view>
 {
 public:
-    string_view name;
+    std::string_view name;
 
-    explicit record(string_view const s) noexcept :
+    explicit record(std::string_view const s) noexcept :
         name(s)
     {}
 
@@ -37,13 +37,13 @@ private:
     friend bool operator<(record const& x, record const& y) noexcept
     { return (x.name < y.name); }
 
-    friend bool operator==(record const& x, string_view const& y) noexcept
+    friend bool operator==(record const& x, std::string_view const& y) noexcept
     { return (x.name == y); }
 
-    friend bool operator<(record const& x, string_view const& y) noexcept
+    friend bool operator<(record const& x, std::string_view const& y) noexcept
     { return (x.name < y); }
 
-    friend bool operator>(record const& x, string_view const& y) noexcept
+    friend bool operator>(record const& x, std::string_view const& y) noexcept
     { return (x.name > y); }
 };
 

@@ -128,7 +128,7 @@ void replaygain_filter::process(audio::packet& pkt) const noexcept
 
 void replaygain_info::reset(media::dictionary const& dict)
 {
-    auto parse_float = [&](string_view const key) {
+    auto parse_float = [&](auto const key) {
         auto found = dict.find(key);
         if (found != dict.end()) {
             char* end;

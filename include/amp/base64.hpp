@@ -10,9 +10,9 @@
 
 
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 
 #include <cstddef>
+#include <string_view>
 
 
 namespace amp {
@@ -37,7 +37,7 @@ constexpr auto decoded_size(char const* const s, std::size_t const n) noexcept
     return ret;
 }
 
-constexpr auto decoded_size(string_view const s) noexcept
+constexpr auto decoded_size(std::string_view const s) noexcept
 { return base64::decoded_size(s.data(), s.size()); }
 
 

@@ -7,11 +7,11 @@
 
 #include <amp/flat_map.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 
 #include <algorithm>
 #include <functional>
 #include <stdexcept>
+#include <string_view>
 
 #include <gtest/gtest.h>
 
@@ -21,7 +21,7 @@ using namespace ::amp;
 
 TEST(flat_map_test, at)
 {
-    flat_map<string_view, int> m;
+    flat_map<std::string_view, int> m;
     ASSERT_TRUE(m.empty());
 
     m.emplace("kappa", 71);
@@ -88,7 +88,7 @@ public:
 TEST(flat_map_test, stateful_compare)
 {
     tagged_compare<std::greater<>> comp{42};
-    flat_map<int, string_view, decltype(comp)> m{comp};
+    flat_map<int, std::string_view, decltype(comp)> m{comp};
 
     EXPECT_EQ(m.key_comp(), comp);
     EXPECT_TRUE(m.emplace(80, "eighty").second);
@@ -107,7 +107,7 @@ TEST(flat_map_test, stateful_compare)
 
 TEST(flat_multimap_test, insert)
 {
-    flat_multimap<string_view, int> m {
+    flat_multimap<std::string_view, int> m {
         { "alpha", 33 },
         { "omega", 18 },
         { "gamma", 71 },

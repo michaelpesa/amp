@@ -10,7 +10,6 @@
 #include <amp/media/tags.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 
 #include "media/cue_sheet.hpp"
@@ -18,6 +17,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -26,7 +26,7 @@ namespace amp {
 namespace cue {
 namespace {
 
-void verify_file_type(string_view const type)
+void verify_file_type(std::string_view const type)
 {
     if (!stricmpeq(type, "WAVE") &&
         !stricmpeq(type, "AIFF") &&
@@ -39,7 +39,7 @@ void verify_file_type(string_view const type)
     }
 }
 
-auto parse_length(string_view const text)
+auto parse_length(std::string_view const text)
 {
     uint mm, ss, ff;
     if (std::sscanf(text.data(), "%u:%u:%u", &mm, &ss, &ff) == 3) {
@@ -52,7 +52,7 @@ auto parse_length(string_view const text)
     raise(errc::failure, "cue sheet: invalid time syntax");
 }
 
-auto parse_number(string_view const text)
+auto parse_number(std::string_view const text)
 {
     uint number;
     if (std::sscanf(text.data(), "%u", &number) == 1) {
@@ -61,13 +61,14 @@ auto parse_number(string_view const text)
     raise(errc::failure, "cue sheet: invalid syntax");
 }
 
-void trim_whitespace(string_view& s, string_view::size_type pos = 0) noexcept
+void trim_whitespace(std::string_view& s,
+                     std::string_view::size_type pos = 0) noexcept
 {
     pos = s.find_first_not_of(" \t", pos);
     s.remove_prefix(std::min(pos, s.size()));
 }
 
-auto read_token(string_view& line) noexcept
+auto read_token(std::string_view& line) noexcept
 {
     auto const pos = line.find_first_of(" \t");
     auto const ret = line.substr(0, pos);
@@ -76,10 +77,10 @@ auto read_token(string_view& line) noexcept
     return ret;
 }
 
-auto read_string(string_view& line)
+auto read_string(std::string_view& line)
 {
-    string_view::size_type pos;
-    string_view ret;
+    std::string_view::size_type pos;
+    std::string_view ret;
 
     if (line.size() >= 2 && line.front() == '\"') {
         pos = line.find('\"', 1);
@@ -98,7 +99,7 @@ auto read_string(string_view& line)
     return ret;
 }
 
-auto maybe_unquote(string_view s)
+auto maybe_unquote(std::string_view s)
 {
     if (s.size() >= 2 && s.front() == '\"') {
         if (s.back() != '\"') {
@@ -119,15 +120,15 @@ public:
     std::vector<cue::track> tracks;
 
 private:
-    void parse_line(string_view);
-    void on_file(string_view, string_view);
-    void on_track(uint, string_view);
+    void parse_line(std::string_view);
+    void on_file(std::string_view, std::string_view);
+    void on_track(uint, std::string_view);
     void on_index(uint, cue::frames);
     void on_pregap(cue::frames);
     void on_postgap(cue::frames);
-    void on_isrc(string_view);
-    void on_flags(string_view);
-    void on_comment(string_view, u8string);
+    void on_isrc(std::string_view);
+    void on_flags(std::string_view);
+    void on_comment(std::string_view, u8string);
 
     void require_track_before_index(char const*) const;
     void commit_track();
@@ -136,7 +137,7 @@ private:
         cue::frames index[100];
         cue::frames pregap;
         cue::frames postgap;
-        string_view file;
+        std::string_view file;
         media::dictionary tags;
         uint number{};
         uint index_count;
@@ -146,7 +147,7 @@ private:
             return (number != 0);
         }
 
-        void reset(string_view const f, uint const n) noexcept
+        void reset(std::string_view const f, uint const n) noexcept
         {
             pregap = cue::frames::zero();
             postgap = cue::frames::zero();
@@ -157,7 +158,7 @@ private:
     }
     current_track;
 
-    string_view current_file;
+    std::string_view current_file;
     media::dictionary global_tags;
     cue::frames last_index_offset;
     bool various_artists{};
@@ -199,7 +200,7 @@ inline void parser::commit_track()
     t.tags.emplace(tags::track_number, to_u8string(current_track.number));
 }
 
-inline void parser::parse_line(string_view line)
+inline void parser::parse_line(std::string_view line)
 {
     auto const cmd = read_token(line);
     if (stricmpeq(cmd, "CATALOG")   ||
@@ -245,14 +246,15 @@ inline void parser::parse_line(string_view line)
     }
 }
 
-inline void parser::on_file(string_view const file, string_view const type)
+inline void parser::on_file(std::string_view const file,
+                            std::string_view const type)
 {
     verify_file_type(type);
     current_file = file;
     last_index_offset = cue::frames::max();
 }
 
-inline void parser::on_track(uint const number, string_view const type)
+inline void parser::on_track(uint const number, std::string_view const type)
 {
     if (current_file.empty()) {
         raise(errc::failure, "cue sheet: track cannot appear before file");
@@ -329,19 +331,19 @@ inline void parser::on_pregap(cue::frames const length)
     current_track.pregap = length;
 }
 
-inline void parser::on_isrc(string_view const text)
+inline void parser::on_isrc(std::string_view const text)
 {
     require_track_before_index("ISRC");
     current_track.tags.emplace(tags::isrc, text);
 }
 
-inline void parser::on_flags(string_view const text)
+inline void parser::on_flags(std::string_view const text)
 {
     require_track_before_index("FLAGS");
     (void) text;
 }
 
-inline void parser::on_comment(string_view const name, u8string value)
+inline void parser::on_comment(std::string_view const name, u8string value)
 {
     auto key = [&]() -> u8string {
         if (stricmpeq(name, "PERFORMER")) {

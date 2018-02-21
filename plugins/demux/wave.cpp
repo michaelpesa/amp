@@ -23,7 +23,6 @@
 #include <amp/media/tags.hpp>
 #include <amp/muldiv.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 #include <amp/utility.hpp>
 
@@ -33,6 +32,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <memory>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -41,7 +41,7 @@ namespace amp {
 namespace wave {
 namespace {
 
-constexpr cxp::map<uint32, string_view, 16> info_keys {{
+constexpr cxp::map<uint32, std::string_view, 16> info_keys {{
     { "IART"_4cc, tags::artist       },
     { "ICMT"_4cc, tags::comment      },
     { "ICOP"_4cc, tags::copyright    },

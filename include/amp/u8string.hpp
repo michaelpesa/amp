@@ -10,10 +10,10 @@
 
 
 #include <amp/aux/operators.hpp>
+#include <amp/aux/string_search.hpp>
 #include <amp/error.hpp>
 #include <amp/memory.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/type_traits.hpp>
 
 #include <algorithm>
@@ -22,6 +22,7 @@
 #include <cstring>
 #include <iterator>
 #include <string>
+#include <string_view>
 #include <utility>
 
 
@@ -60,7 +61,7 @@ AMP_INLINE bool is_valid_utf8(char const* const s,
                               std::size_t const len) noexcept
 { return is_valid_utf8(s, s + len); }
 
-AMP_INLINE bool is_valid_utf8(string_view const s) noexcept
+AMP_INLINE bool is_valid_utf8(std::string_view const s) noexcept
 { return is_valid_utf8(s.begin(), s.end()); }
 
 
@@ -107,11 +108,11 @@ struct u8string_rep
 
 namespace aux {
 
-template<typename Derived>
+template<typename D>
 class u8string_common_ :
-    private totally_ordered<Derived, Derived>,
-    private totally_ordered<Derived, string_view>,
-    private totally_ordered<Derived, char const*>
+    private totally_ordered<D, D>,
+    private totally_ordered<D, std::string_view>,
+    private totally_ordered<D, char const*>
 {
 public:
     static auto from_encoding(void const*     const s,
@@ -119,7 +120,7 @@ public:
                               string_encoding const enc)
     {
         auto const flags = static_cast<uint32>(enc);
-        return Derived::consume(u8string_rep::from_encoding(s, n, flags));
+        return D::consume(u8string_rep::from_encoding(s, n, flags));
     }
 
     static auto from_encoding_lossy(void const*     const s,
@@ -127,23 +128,23 @@ public:
                                     string_encoding const enc)
     {
         auto const flags = static_cast<uint32>(enc) | (uint32{1} << 31);
-        return Derived::consume(u8string_rep::from_encoding(s, n, flags));
+        return D::consume(u8string_rep::from_encoding(s, n, flags));
     }
 
     static auto from_utf8_unchecked(char const* const s, std::size_t const n)
-    { return Derived::consume(u8string_rep::from_utf8_unchecked(s, n)); }
+    { return D::consume(u8string_rep::from_utf8_unchecked(s, n)); }
 
-    static auto from_utf8_unchecked(string_view const s)
+    static auto from_utf8_unchecked(std::string_view const s)
     { return from_utf8_unchecked(s.data(), s.size()); }
 
 #define AMP_U8STRING_FROM_ENCODING(Name, E, C)                              \
     static auto from_##Name(C const* const s, std::size_t const n)          \
     { return from_encoding(s, n, string_encoding::E); }                     \
-    static auto from_##Name(basic_string_view<C> const s)                   \
+    static auto from_##Name(std::basic_string_view<C> const s)              \
     { return from_##Name(s.data(), s.size()); }                             \
     static auto from_##Name##_lossy(C const* const s, std::size_t const n)  \
     { return from_encoding_lossy(s, n, string_encoding::E); }               \
-    static auto from_##Name##_lossy(basic_string_view<C> const s)           \
+    static auto from_##Name##_lossy(std::basic_string_view<C> const s)      \
     { return from_##Name##_lossy(s.data(), s.size()); }
 
     AMP_U8STRING_FROM_ENCODING(utf8,    utf8,    char)
@@ -162,26 +163,26 @@ public:
 #undef AMP_U8STRING_FROM_ENCODING
 
     static auto from_text_file(io::stream& file)
-    { return Derived::consume(u8string_rep::from_text_file(file)); }
+    { return D::consume(u8string_rep::from_text_file(file)); }
 
 private:
-    friend bool operator==(Derived const& x, Derived const& y) noexcept
+    friend bool operator==(D const& x, D const& y) noexcept
     { return x.compare(y) == 0; }
-    friend bool operator<(Derived const& x, Derived const& y) noexcept
+    friend bool operator<(D const& x, D const& y) noexcept
     { return x.compare(y) < 0; }
 
-    friend bool operator==(Derived const& x, string_view const& y) noexcept
+    friend bool operator==(D const& x, std::string_view const& y) noexcept
     { return x.compare(y) == 0; }
-    friend bool operator<(Derived const& x, string_view const& y) noexcept
+    friend bool operator<(D const& x, std::string_view const& y) noexcept
     { return x.compare(y) < 0; }
-    friend bool operator>(Derived const& x, string_view const& y) noexcept
+    friend bool operator>(D const& x, std::string_view const& y) noexcept
     { return x.compare(y) > 0; }
 
-    friend bool operator==(Derived const& x, char const* const y) noexcept
+    friend bool operator==(D const& x, char const* const y) noexcept
     { return x.compare(y) == 0; }
-    friend bool operator<(Derived const& x, char const* const y) noexcept
+    friend bool operator<(D const& x, char const* const y) noexcept
     { return x.compare(y) < 0; }
-    friend bool operator>(Derived const& x, char const* const y) noexcept
+    friend bool operator>(D const& x, char const* const y) noexcept
     { return x.compare(y) > 0; }
 };
 
@@ -237,7 +238,7 @@ public:
         u8string_buffer{s, s ? std::strlen(s) : 0}
     {}
 
-    u8string_buffer(string_view const s) :
+    u8string_buffer(std::string_view const s) :
         u8string_buffer{s.data(), s.size()}
     {}
 
@@ -407,13 +408,13 @@ public:
     int compare(u8string_buffer const& x) const noexcept
     { return compare(x.data(), x.size()); }
 
-    int compare(string_view const x) const noexcept
+    int compare(std::string_view const x) const noexcept
     { return compare(x.data(), x.size()); }
 
-    string_view to_string_view() const noexcept
+    std::string_view to_string_view() const noexcept
     { return {data(), size()}; }
 
-    operator string_view() const noexcept
+    operator std::string_view() const noexcept
     { return to_string_view(); }
 
     void remove_prefix(size_type const n) noexcept
@@ -457,7 +458,7 @@ public:
         return *this;
     }
 
-    u8string_buffer& append(string_view const s)
+    u8string_buffer& append(std::string_view const s)
     { return append(s.data(), s.size()); }
 
     u8string_buffer& append(char const* const s)
@@ -498,7 +499,7 @@ inline auto& operator+=(u8string_buffer& x, char const y)
 inline auto& operator+=(u8string_buffer& x, char const* const y)
 { return x.append(y); }
 
-inline auto& operator+=(u8string_buffer& x, string_view const y)
+inline auto& operator+=(u8string_buffer& x, std::string_view const y)
 { return x.append(y); }
 
 inline auto& operator+=(u8string_buffer& x, u8string const& y)
@@ -514,7 +515,7 @@ inline auto operator+(u8string_buffer x, char const y)
 inline auto operator+(u8string_buffer x, u8string_buffer const& y)
 { x += y; return x; }
 
-inline auto operator+(u8string_buffer x, string_view const y)
+inline auto operator+(u8string_buffer x, std::string_view const y)
 { x += y; return x; }
 
 inline auto operator+(u8string_buffer x, char const* const y)
@@ -523,7 +524,7 @@ inline auto operator+(u8string_buffer x, char const* const y)
 inline auto operator+(u8string_buffer x, u8string const& y)
 { x += y; return x; }
 
-inline auto operator+(string_view const x, u8string_buffer const& y)
+inline auto operator+(std::string_view const x, u8string_buffer const& y)
 { return u8string_buffer{x} + y; }
 
 
@@ -562,7 +563,7 @@ public:
         u8string{s, s ? std::strlen(s) : 0}
     {}
 
-    u8string(string_view const s) :
+    u8string(std::string_view const s) :
         u8string{s.data(), s.size()}
     {}
 
@@ -705,11 +706,12 @@ public:
     int compare(u8string const& x) const noexcept
     { return (rep_ == x.rep_) ? 0 : compare(x.data(), x.size()); }
 
-    int compare(string_view const x) const noexcept
+    int compare(std::string_view const x) const noexcept
     { return compare(x.data(), x.size()); }
 
 
-    size_type find(string_view const s, size_type const pos = 0) const noexcept
+    size_type find(std::string_view const s,
+                   size_type const pos = 0) const noexcept
     {
         return aux::str_find<std::char_traits<char>>(
             data(), size(), s.data(), pos, s.size());
@@ -722,7 +724,7 @@ public:
     }
 
 
-    size_type rfind(string_view const s,
+    size_type rfind(std::string_view const s,
                     size_type const pos = npos) const noexcept
     {
         return aux::str_rfind<std::char_traits<char>>(
@@ -737,7 +739,7 @@ public:
     }
 
 
-    size_type find_first_of(string_view const s,
+    size_type find_first_of(std::string_view const s,
                             size_type const pos = 0) const noexcept
     {
         return aux::str_find_first_of<std::char_traits<char>>(
@@ -751,7 +753,7 @@ public:
     }
 
 
-    size_type find_last_of(string_view const s,
+    size_type find_last_of(std::string_view const s,
                            size_type const pos = npos) const noexcept
     {
         return aux::str_find_last_of<std::char_traits<char>>(
@@ -765,7 +767,7 @@ public:
     }
 
 
-    size_type find_first_not_of(string_view const s,
+    size_type find_first_not_of(std::string_view const s,
                                 size_type const pos = 0) const noexcept
     {
         return aux::str_find_first_not_of<std::char_traits<char>>(
@@ -780,7 +782,7 @@ public:
     }
 
 
-    size_type find_last_not_of(string_view const s,
+    size_type find_last_not_of(std::string_view const s,
                                size_type const pos = npos) const noexcept
     {
         return aux::str_find_last_not_of<std::char_traits<char>>(
@@ -795,10 +797,10 @@ public:
     }
 
 
-    string_view to_string_view() const noexcept
+    std::string_view to_string_view() const noexcept
     { return {data(), size()}; }
 
-    operator string_view() const noexcept
+    operator std::string_view() const noexcept
     { return to_string_view(); }
 
     explicit operator u8string_buffer() const&
@@ -816,7 +818,7 @@ public:
     AMP_EXPORT
     static u8string intern(char const*, size_type);
 
-    static u8string intern(string_view const s)
+    static u8string intern(std::string_view const s)
     { return u8string::intern(s.data(), s.size()); }
 
 private:
@@ -846,7 +848,7 @@ inline auto operator+(u8string const& x, char const y)
 inline auto operator+(u8string const& x, char const* const y)
 { return (x.detach() + y).promote(); }
 
-inline auto operator+(u8string const& x, string_view const y)
+inline auto operator+(u8string const& x, std::string_view const y)
 { return (x.detach() + y).promote(); }
 
 inline auto operator+(u8string const& x, u8string const& y)
@@ -862,7 +864,7 @@ inline auto& operator+=(u8string& x, char const y)
 inline auto& operator+=(u8string& x, char const* const y)
 { return x = (std::move(x).detach() + y).promote(); }
 
-inline auto& operator+=(u8string& x, string_view const y)
+inline auto& operator+=(u8string& x, std::string_view const y)
 { return x = (std::move(x).detach() + y).promote(); }
 
 inline auto& operator+=(u8string& x, u8string const& y)
@@ -874,7 +876,7 @@ inline auto& operator+=(u8string& x, u8string_buffer const& y)
 inline auto operator+(char const* const x, u8string const& y)
 { return u8string{x} + y; }
 
-inline auto operator+(string_view const x, u8string const& y)
+inline auto operator+(std::string_view const x, u8string const& y)
 { return u8string{x} + y; }
 
 
@@ -895,20 +897,20 @@ u8string u8format(AMP_PRINTF_FORMAT_STRING char const*, ...);
 AMP_INLINE auto to_u8string(u8string_buffer s)
 { return s.promote(); }
 
-AMP_INLINE auto to_u8string(string_view const s)
-{ return u8string{s}; }
-
 AMP_INLINE auto to_u8string(char const* const s)
 { return u8string{s}; }
 
-AMP_INLINE auto to_u8string(u16string_view const s)
+AMP_INLINE auto to_u8string(std::string_view const s)
+{ return u8string{s}; }
+
+AMP_INLINE auto to_u8string(std::u16string_view const s)
 { return u8string::from_utf16(s); }
 
-AMP_INLINE auto to_u8string(u32string_view const s)
+AMP_INLINE auto to_u8string(std::u32string_view const s)
 { return u8string::from_utf32(s); }
 
 #ifdef _WIN32
-AMP_INLINE auto to_u8string(wstring_view const s)
+AMP_INLINE auto to_u8string(std::wstring_view const s)
 { return u8string::from_wide(s); }
 #endif
 

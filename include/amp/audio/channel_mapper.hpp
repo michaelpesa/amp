@@ -10,9 +10,9 @@
 
 
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 
 #include <memory>
+#include <string_view>
 #include <utility>
 
 
@@ -125,11 +125,11 @@ public:
     AMP_EXPORT
     static std::unique_ptr<channel_mapper> create(uint32);
     AMP_EXPORT
-    static std::unique_ptr<channel_mapper> create(string_view);
+    static std::unique_ptr<channel_mapper> create(std::string_view);
 };
 
 
-inline string_view xiph_channel_map(uint32 const channels) noexcept
+inline std::string_view xiph_channel_map(uint32 const channels) noexcept
 {
     switch (channels) {
     case 1: return "\x1";

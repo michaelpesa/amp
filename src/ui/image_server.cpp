@@ -17,6 +17,7 @@
 #include "ui/string.hpp"
 
 #include <mutex>
+#include <string_view>
 #include <tuple>
 #include <utility>
 
@@ -26,6 +27,9 @@
 namespace amp {
 namespace ui {
 namespace {
+
+using namespace ::std::literals;
+
 
 auto findInternalImage(net::uri const& location, media::image_type const type)
 {
@@ -110,7 +114,7 @@ auto findExternalImage(net::uri const& location, media::image_type const type)
 auto resolveImage(net::uri const& location, media::image_type const type)
 {
     QImage image;
-    if (location.scheme() == "file"_sv) {
+    if (location.scheme() == "file"sv) {
         try {
             image = findInternalImage(location, type);
             if (image.isNull()) {

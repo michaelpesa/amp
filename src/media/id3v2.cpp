@@ -19,12 +19,12 @@
 #include <amp/optional.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 #include <amp/utility.hpp>
 
 #include <cinttypes>
 #include <cstdio>
+#include <string_view>
 #include <type_traits>
 
 
@@ -100,7 +100,7 @@ constexpr cxp::map<uint32, uint32, 64> frame_id_to_v24_map {{
 }};
 static_assert(cxp::is_sorted(frame_id_to_v24_map), "");
 
-constexpr cxp::map<uint32, string_view, 44> text_frame_map {{
+constexpr cxp::map<uint32, std::string_view, 44> text_frame_map {{
     { "TALB"_4cc, tags::album               },
     { "TBPM"_4cc, tags::bpm                 },
     { "TCMP"_4cc, tags::compilation         },
@@ -148,7 +148,7 @@ constexpr cxp::map<uint32, string_view, 44> text_frame_map {{
 }};
 static_assert(cxp::is_sorted(text_frame_map), "");
 
-constexpr cxp::map<uint32, string_view, 9> url_frame_map {{
+constexpr cxp::map<uint32, std::string_view, 9> url_frame_map {{
     { "WCOM"_4cc, tags::commercial_information },
     { "WCOP"_4cc, tags::copyright_information  },
     { "WOAF"_4cc, tags::file_web_page          },

@@ -12,7 +12,6 @@
 #include <amp/numeric.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 #include <amp/utility.hpp>
 
@@ -22,11 +21,15 @@
 #include <cstddef>
 #include <cstdlib>
 #include <new>
+#include <string_view>
 
 
 namespace amp {
 namespace net {
 namespace {
+
+using namespace std::literals;
+
 
 constexpr bool is_sub_delim(char const c) noexcept
 {
@@ -115,14 +118,16 @@ inline void uri_escape(char const c, char*& dst) noexcept
     *dst++ = hex_digits[(c >> 0) & 0xf];
 }
 
-inline bool starts_with(string_view const x, string_view const y) noexcept
+inline bool starts_with(std::string_view const x,
+                        std::string_view const y) noexcept
 {
     return (y.size() <= x.size())
         && std::equal(y.begin(), y.end(), x.begin());
 }
 
 
-auto percent_encoded_size(string_view const src, uri_part const part) noexcept
+auto percent_encoded_size(std::string_view const src,
+                          uri_part const part) noexcept
 {
     auto const mask = 1U << as_underlying(part);
     auto size = 0_sz;
@@ -132,7 +137,7 @@ auto percent_encoded_size(string_view const src, uri_part const part) noexcept
     return size;
 }
 
-void percent_encode(string_view const src, char* dst,
+void percent_encode(std::string_view const src, char* dst,
                     uri_part const part) noexcept
 {
     auto const mask = 1U << as_underlying(part);
@@ -146,7 +151,7 @@ void percent_encode(string_view const src, char* dst,
     }
 }
 
-auto percent_decoded_size(string_view const src)
+auto percent_decoded_size(std::string_view const src)
 {
     auto size = 0_sz;
     auto const last = src.end();
@@ -165,7 +170,7 @@ auto percent_decoded_size(string_view const src)
     return size;
 }
 
-void percent_decode(string_view const src, char* dst) noexcept
+void percent_decode(std::string_view const src, char* dst) noexcept
 {
     auto const last = src.end();
     for (auto first = src.begin(); first != last; ) {
@@ -219,7 +224,7 @@ u8string merge_paths(uri const& base, uri const& rel)
 char* remove_dot_segments(char* const first, char* const last) noexcept
 {
     auto dst = first;
-    auto src = string_view{dst, as_unsigned(last - dst)};
+    auto src = std::string_view{dst, as_unsigned(last - dst)};
 
     auto remove_last_segment = [&]() noexcept {
         while (dst != first) {
@@ -268,7 +273,7 @@ char* remove_dot_segments(char* const first, char* const last) noexcept
     return dst;
 }
 
-void copy_and_normalize(string_view const src, char*& dst,
+void copy_and_normalize(std::string_view const src, char*& dst,
                         uri_rep& rep, uri_part const part)
 {
     AMP_ASSERT(!src.empty());
@@ -312,13 +317,13 @@ void copy_and_normalize(string_view const src, char*& dst,
     rep[part].length = static_cast<uint32>(dst - start);
 }
 
-uri from_parts(string_view const scheme,
-               string_view const userinfo,
-               string_view const host,
-               string_view const port,
-               string_view const path,
-               string_view const query,
-               string_view const fragment)
+uri from_parts(std::string_view const scheme,
+               std::string_view const userinfo,
+               std::string_view const host,
+               std::string_view const port,
+               std::string_view const path,
+               std::string_view const query,
+               std::string_view const fragment)
 {
     auto max_len = host.size();
     if (!scheme.empty())   { max_len += scheme.size() + 3; }
@@ -338,7 +343,7 @@ uri from_parts(string_view const scheme,
     auto const has_authority = !userinfo.empty()
                             || !host.empty()
                             || !port.empty()
-                            || (scheme == "file"_sv);
+                            || (scheme == "file"sv);
     if (has_authority) {
         if (!scheme.empty()) {
             dst = std::copy_n("://", 3, dst);
@@ -433,7 +438,7 @@ uri uri::resolve(uri const& base) const
             else {
                 if (path.front() != '/') {
                     path_buf = merge_paths(base, *this);
-                    path = to_string_view(path_buf);
+                    path = path_buf.to_string_view();
                 }
             }
         }
@@ -441,17 +446,17 @@ uri uri::resolve(uri const& base) const
     return from_parts(scheme, userinfo, host, port, path, query, fragment);
 }
 
-uri uri::from_string(string_view const s)
+uri uri::from_string(std::string_view const s)
 {
     if (s.empty()) {
         return {};
     }
 
     auto make_part = [](char const* const b, char const* const e) noexcept {
-        return string_view{b, static_cast<std::size_t>(e - b)};
+        return std::string_view{b, static_cast<std::size_t>(e - b)};
     };
 
-    string_view scheme, userinfo, host, port, path, query, fragment;
+    std::string_view scheme, userinfo, host, port, path, query, fragment;
 
     auto src = s.begin();
     auto end = s.end();
@@ -477,7 +482,7 @@ uri uri::from_string(string_view const s)
     if (has_authority) {
         src += 2;
 
-        auto const authority_end_delims = "/?#"_sv;
+        auto const authority_end_delims = "/?#"sv;
         auto const authority_end = std::find_first_of(
             src, end,
             authority_end_delims.begin(),
@@ -519,7 +524,7 @@ uri uri::from_string(string_view const s)
     return from_parts(scheme, userinfo, host, port, path, query, fragment);
 }
 
-uri uri::from_file_path(string_view const path)
+uri uri::from_file_path(std::string_view const path)
 {
     if (path.empty()) {
         return {};

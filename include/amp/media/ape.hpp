@@ -11,7 +11,6 @@
 
 #include <amp/media/image.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 
 
 namespace amp {

@@ -18,11 +18,11 @@
 #include <amp/memory.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 
 #include <algorithm>
 #include <cstddef>
+#include <string_view>
 #include <utility>
 
 
@@ -115,7 +115,7 @@ struct item
     //{ return ((flags >> 1) & 0x3) == 0x2; }
 
     char const* key;
-    string_view value;
+    std::string_view value;
     uint32 flags;
 };
 

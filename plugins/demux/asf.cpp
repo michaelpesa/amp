@@ -34,6 +34,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdio>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -107,6 +108,8 @@ constexpr auto guid_audio_media
 constexpr auto guid_audio_spread
     = "50cdc3bf-8f61-cf11-8bb2-00aa00b4e220"_guid;
 
+
+using std::string_view;
 
 constexpr cxp::map<string_view, string_view, 45, stricmp_less> key_mapping {{
     { "MusicBrainz/Album Artist Id",  tags::mb_album_artist_id  },

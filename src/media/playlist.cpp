@@ -27,6 +27,7 @@
 #include <cstddef>
 #include <limits>
 #include <random>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -236,7 +237,7 @@ playlist::size_type playlist::gen_position_(size_type pos, bool const forward)
     }
 }
 
-void playlist::sort(string_view const key, media::sort_order const order)
+void playlist::sort(std::string_view const key, media::sort_order const order)
 {
     std::stable_sort(
         tracks_.begin(),

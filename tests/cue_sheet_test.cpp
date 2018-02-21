@@ -7,10 +7,11 @@
 
 #include <amp/media/tags.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 
 #include "media/cue_sheet.hpp"
+
+#include <string_view>
 
 #include <gtest/gtest.h>
 
@@ -20,7 +21,7 @@ using namespace ::amp;
 
 namespace {
 
-inline auto get_meta(cue::track const& track, string_view const key)
+inline auto get_meta(cue::track const& track, std::string_view const key)
 {
     auto found = track.tags.find(key);
     return found != track.tags.end() ? found->second : u8string{};

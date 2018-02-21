@@ -6,10 +6,10 @@
 
 
 #include <amp/flat_set.hpp>
-#include <amp/string_view.hpp>
 
 #include <algorithm>
 #include <functional>
+#include <string_view>
 
 #include <gtest/gtest.h>
 
@@ -24,7 +24,7 @@ public:
     fs_compare(fs_compare const&) noexcept(false) {}
     fs_compare& operator=(fs_compare const&) noexcept(false) { return *this; }
 
-    bool operator()(string_view const x, string_view const y) const
+    bool operator()(std::string_view const x, std::string_view const y) const
     {
         auto const x_hidden = !x.empty() && (x.front() == '.');
         auto const y_hidden = !y.empty() && (y.front() == '.');
@@ -77,7 +77,7 @@ TEST(flat_set_test, emplace_hint)
 
 TEST(flat_set_test, stateful_compare)
 {
-    flat_set<string_view, fs_compare> s;
+    flat_set<std::string_view, fs_compare> s;
 
     static_assert(!is_nothrow_default_constructible_v<decltype(s)>, "");
     static_assert(!is_nothrow_move_constructible_v<decltype(s)>, "");

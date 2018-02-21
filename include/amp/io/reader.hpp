@@ -13,11 +13,11 @@
 #include <amp/io/memory.hpp>
 #include <amp/optional.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/type_traits.hpp>
 
 #include <algorithm>
 #include <cstddef>
+#include <string_view>
 #include <utility>
 
 
@@ -83,7 +83,7 @@ public:
     }
 
     template<typename T, endian E>
-    AMP_INLINE string_view read_pascal_string()
+    AMP_INLINE std::string_view read_pascal_string()
     {
         auto const limit = remain();
         if (limit >= sizeof(T)) {
@@ -98,7 +98,7 @@ public:
     }
 
     template<typename T, typename = enable_if_t<is_byte_v<T>>>
-    AMP_INLINE string_view read_pascal_string()
+    AMP_INLINE std::string_view read_pascal_string()
     {
         return read_pascal_string<T, endian::host>();
     }

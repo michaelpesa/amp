@@ -15,10 +15,10 @@
 #include <amp/intrusive/set.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/type_traits.hpp>
 #include <amp/u8string.hpp>
 
+#include <string_view>
 #include <utility>
 
 
@@ -98,7 +98,7 @@ protected:
 class output_session_factory :
     public intrusive::set_link<>,
     private less_than_comparable<output_session_factory>,
-    private less_than_comparable<output_session_factory, string_view>
+    private less_than_comparable<output_session_factory, std::string_view>
 {
 public:
     virtual ref_ptr<output_session> create() const = 0;
@@ -124,11 +124,11 @@ private:
     { return (x.id < y.id); }
 
     friend bool operator<(output_session_factory const& x,
-                          string_view const& y) noexcept
+                          std::string_view const& y) noexcept
     { return (x.id < y); }
 
     friend bool operator>(output_session_factory const& x,
-                          string_view const& y) noexcept
+                          std::string_view const& y) noexcept
     { return (x.id > y); }
 };
 

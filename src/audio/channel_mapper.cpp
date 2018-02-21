@@ -11,11 +11,11 @@
 #include <amp/error.hpp>
 #include <amp/range.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cinttypes>
+#include <string_view>
 
 
 namespace amp {
@@ -26,7 +26,7 @@ class channel_mapper_impl final :
     public channel_mapper
 {
 public:
-    explicit channel_mapper_impl(string_view const mapping) noexcept :
+    explicit channel_mapper_impl(std::string_view const mapping) noexcept :
         channels_{static_cast<uint32>(mapping.size())}
     {
         std::array<uint8, max_channels> ordered;
@@ -142,7 +142,7 @@ std::unique_ptr<channel_mapper> channel_mapper::create(uint32 const tag)
         tag <= audio::channel_layout_tag::ac3_3_1_1) {
         auto found = channel_mappings[(tag >> 16) - 100];
         if (found != nullptr) {
-            auto const map = string_view{found, tag & 0xff};
+            auto const map = std::string_view{found, tag & 0xff};
             return std::make_unique<channel_mapper_impl>(map);
         }
     }
@@ -150,7 +150,8 @@ std::unique_ptr<channel_mapper> channel_mapper::create(uint32 const tag)
           "unsupported channel layout tag: 0x%08" PRIx32, tag);
 }
 
-std::unique_ptr<channel_mapper> channel_mapper::create(string_view const map)
+std::unique_ptr<channel_mapper> channel_mapper::create(
+    std::string_view const map)
 {
     if (map.size() <= audio::max_channels) {
         return std::make_unique<channel_mapper_impl>(map);

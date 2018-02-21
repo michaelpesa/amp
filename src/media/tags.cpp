@@ -10,7 +10,6 @@
 #include <amp/range.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
-#include <amp/string_view.hpp>
 
 #include "core/filesystem.hpp"
 #include "media/tags.hpp"
@@ -20,11 +19,15 @@
 #include <cinttypes>
 #include <cstdlib>
 #include <iterator>
+#include <string_view>
 #include <utility>
 
 
 namespace amp {
 namespace tags {
+
+using ::std::string_view;
+
 
 AMP_NOINLINE
 char* format_hms(std::chrono::seconds const t, char* dst) noexcept

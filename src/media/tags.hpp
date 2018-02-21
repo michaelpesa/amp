@@ -11,10 +11,10 @@
 
 #include <amp/media/tags.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 
 #include <chrono>
+#include <string_view>
 
 
 namespace amp {
@@ -25,11 +25,14 @@ namespace media {
 
 namespace tags {
 
-constexpr auto file_name    = "file name"_sv;
-constexpr auto directory    = "directory"_sv;
-constexpr auto disc_track   = "disc track"_sv;
-constexpr auto length       = "length"_sv;
-constexpr auto track_artist = "track artist"_sv;
+using namespace ::std::literals;
+
+
+constexpr auto file_name    = "file name"sv;
+constexpr auto directory    = "directory"sv;
+constexpr auto disc_track   = "disc track"sv;
+constexpr auto length       = "length"sv;
+constexpr auto track_artist = "track artist"sv;
 
 constexpr auto max_hms_length = 23_sz;
 char* format_hms(std::chrono::seconds, char*) noexcept;
@@ -39,11 +42,11 @@ enum class scope {
     exact = 1,
 };
 
-u8string find(media::track const&, string_view, scope = scope::smart);
-bool contains(media::track const&, string_view) noexcept;
-int compare(media::track const&, media::track const&, string_view);
+u8string find(media::track const&, std::string_view, scope = scope::smart);
+bool contains(media::track const&, std::string_view) noexcept;
+int compare(media::track const&, media::track const&, std::string_view);
 
-AMP_READONLY char const* display_name(string_view) noexcept;
+AMP_READONLY char const* display_name(std::string_view) noexcept;
 
 }}    // namespace amp::tags
 

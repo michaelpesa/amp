@@ -7,12 +7,14 @@
 
 #include <amp/md5.hpp>
 #include <amp/memory.hpp>
-#include <amp/string_view.hpp>
+
+#include <string_view>
 
 #include <gtest/gtest.h>
 
 
 using namespace ::amp;
+using namespace ::std::literals;
 
 
 TEST(md5_test, sum)
@@ -29,7 +31,7 @@ TEST(md5_test, sum)
     }
 
     {
-        auto const msg = "The quick brown fox jumps over the lazy dog"_sv;
+        auto const msg = "The quick brown fox jumps over the lazy dog"sv;
 
         uint8 const expected_digest[] {
             0x9e, 0x10, 0x7d, 0x9d, 0x37, 0x2b, 0xb6, 0x82,
@@ -42,7 +44,7 @@ TEST(md5_test, sum)
     }
 
     {
-        auto const msg = "The quick brown fox jumps over the lazy dog."_sv;
+        auto const msg = "The quick brown fox jumps over the lazy dog."sv;
 
         uint8 const expected_digest[] {
             0xe4, 0xd9, 0x09, 0xc2, 0x90, 0xd0, 0xfb, 0x1c,

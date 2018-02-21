@@ -14,7 +14,6 @@
 #include <amp/media/image.hpp>
 #include <amp/media/tags.hpp>
 #include <amp/net/endian.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 #include <amp/utility.hpp>
 
@@ -26,6 +25,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <limits>
+#include <string_view>
 #include <utility>
 
 
@@ -128,7 +128,7 @@ enum class item_type : uint8 {
 
 struct ilst_parser
 {
-    string_view const key;
+    std::string_view const key;
     item_type const type;
 
     void read(io::reader r, media::dictionary& tags) const

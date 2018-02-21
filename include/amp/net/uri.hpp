@@ -13,13 +13,13 @@
 #include <amp/memory.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 #include <amp/utility.hpp>
 
 #include <atomic>
 #include <cstddef>
 #include <iterator>
+#include <string_view>
 #include <utility>
 
 
@@ -133,25 +133,25 @@ public:
     const_reverse_iterator crend() const noexcept
     { return const_reverse_iterator(cbegin()); }
 
-    string_view scheme() const noexcept
+    std::string_view scheme() const noexcept
     { return get_part_(uri_part::scheme); }
 
-    string_view userinfo() const noexcept
+    std::string_view userinfo() const noexcept
     { return get_part_(uri_part::userinfo); }
 
-    string_view host() const noexcept
+    std::string_view host() const noexcept
     { return get_part_(uri_part::host); }
 
-    string_view port() const noexcept
+    std::string_view port() const noexcept
     { return get_part_(uri_part::port); }
 
-    string_view query() const noexcept
+    std::string_view query() const noexcept
     { return get_part_(uri_part::query); }
 
-    string_view path() const noexcept
+    std::string_view path() const noexcept
     { return get_part_(uri_part::path); }
 
-    string_view fragment() const noexcept
+    std::string_view fragment() const noexcept
     { return get_part_(uri_part::fragment); }
 
     uint32 use_count() const noexcept
@@ -170,18 +170,18 @@ public:
     u8string get_file_path() const;
 
     AMP_EXPORT
-    static uri from_string(string_view);
+    static uri from_string(std::string_view);
 
     AMP_EXPORT
-    static uri from_file_path(string_view);
+    static uri from_file_path(std::string_view);
 
 private:
-    AMP_INLINE string_view get_part_(uri_part const part) const noexcept
+    AMP_INLINE std::string_view get_part_(uri_part const part) const noexcept
     {
         if (rep) {
             return {rep->data() + (*rep)[part].offset, (*rep)[part].length};
         }
-        return string_view{};
+        return {};
     }
 
     friend bool operator==(uri const& x, uri const& y) noexcept

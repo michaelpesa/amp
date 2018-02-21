@@ -17,6 +17,7 @@
 #include "media/track.hpp"
 
 #include <atomic>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -131,7 +132,7 @@ public:
         unsaved_changes_ = true;
     }
 
-    void sort(string_view, media::sort_order);
+    void sort(std::string_view, media::sort_order);
 
     void save();
     void remove();

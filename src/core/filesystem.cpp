@@ -14,6 +14,7 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <string_view>
 
 #if defined(_WIN32)
 # include <amp/scope_guard.hpp>
@@ -31,6 +32,9 @@ namespace amp {
 namespace fs {
 namespace {
 
+using namespace std::literals;
+
+
 template<typename Char>
 constexpr bool is_current_or_parent_directory(Char const* const p) noexcept
 {
@@ -47,15 +51,15 @@ constexpr bool is_sep(char const c) noexcept
 }
 
 #if defined(_WIN32)
-constexpr auto separators = "/\\"_sv;
+constexpr auto separators = "/\\"sv;
 constexpr auto preferred_separator = '\\';
 #else
-constexpr auto separators = "/"_sv;
+constexpr auto separators = "/"sv;
 constexpr auto preferred_separator = '/';
 #endif
 
 
-auto& path_append(u8string_buffer& lhs, string_view const rhs)
+auto& path_append(u8string_buffer& lhs, std::string_view const rhs)
 {
     if (!rhs.empty() && !is_sep(rhs.front()) &&
         !lhs.empty() && !is_sep(lhs.back())) {
@@ -65,7 +69,7 @@ auto& path_append(u8string_buffer& lhs, string_view const rhs)
     return lhs;
 }
 
-auto path_append(u8string const& lhs, string_view const rhs)
+auto path_append(u8string const& lhs, std::string_view const rhs)
 {
     auto buf = lhs.detach();
     return path_append(buf, rhs).promote();

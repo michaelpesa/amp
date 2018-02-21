@@ -20,12 +20,12 @@
 #include <amp/range.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
-#include <amp/string_view.hpp>
 #include <amp/utility.hpp>
 
 #include "error.hpp"
 
 #include <cstddef>
+#include <string_view>
 #include <utility>
 
 #include <vorbis/codec.h>
@@ -206,21 +206,20 @@ auto input::get_info(uint32 const number)
 
             auto const len = as_unsigned(vc->comment_lengths[i]);
             auto const str = vc->user_comments[i];
-
-            auto sep = string_view{str, len}.find('=');
+            auto const sep = std::string_view{str, len}.find('=');
             if (sep >= len) {
                 continue;
             }
 
             // Don't store embedded cover art in the dictionary.
-            auto const key = string_view{str, sep};
+            std::string_view const key{str, sep};
             if (stricmpeq(key, "COVERART")     ||
                 stricmpeq(key, "COVERARTMIME") ||
                 stricmpeq(key, "METADATA_BLOCK_PICTURE")) {
                 continue;
             }
 
-            auto const value = string_view{str + (sep + 1), len - (sep + 1)};
+            std::string_view const value{str + (sep + 1), len - (sep + 1)};
             info.tags.emplace(tags::map_common_key(key),
                               u8string::from_utf8_lossy(value));
         }
@@ -243,7 +242,7 @@ auto input::get_image(media::image_type const type)
 
     media::image image;
     for (auto const i : xrange(n)) {
-        string_view const block{::vorbis_comment_query(vc, key, i)};
+        std::string_view const block{::vorbis_comment_query(vc, key, i)};
         io::buffer buf{base64::decoded_size(block), uninitialized};
         base64::decode(block.data(), block.size(), buf.data());
 

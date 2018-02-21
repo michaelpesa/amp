@@ -11,11 +11,11 @@
 
 #include <amp/io/buffer.hpp>
 #include <amp/stddef.hpp>
-#include <amp/string_view.hpp>
 #include <amp/type_traits.hpp>
 #include <amp/u8string.hpp>
 
 #include <cstddef>
+#include <string_view>
 
 #include <QtCore/QByteArray>
 #include <QtCore/QMetaType>
@@ -55,7 +55,7 @@ inline auto to_qstring(char const* const s)
 inline auto to_qstring(char const* const s, std::size_t const len)
 { return QString::fromUtf8(s, static_cast<int>(len)); }
 
-inline auto to_qstring(string_view const s)
+inline auto to_qstring(std::string_view const s)
 { return QString::fromUtf8(s.data(), static_cast<int>(s.size())); }
 
 inline auto to_qstring(char16 const* const s)
@@ -64,7 +64,7 @@ inline auto to_qstring(char16 const* const s)
 inline auto to_qstring(char16 const* const s, std::size_t const len)
 { return QString::fromUtf16(s, static_cast<int>(len)); }
 
-inline auto to_qstring(u16string_view const s)
+inline auto to_qstring(std::u16string_view const s)
 { return QString::fromUtf16(s.data(), static_cast<int>(s.size())); }
 
 inline auto to_qbytearray(io::buffer const& buf)

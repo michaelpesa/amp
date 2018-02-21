@@ -6,31 +6,32 @@
 
 
 #include <amp/base64.hpp>
-#include <amp/string_view.hpp>
 
 #include <stdexcept>
+#include <string_view>
 
 #include <gtest/gtest.h>
 
 
 using namespace ::amp;
+using namespace ::std::literals;
 
 
 TEST(base64_test, encode_and_decode)
 {
     static constexpr struct {
-        string_view decoded;
-        string_view encoded;
+        std::string_view decoded;
+        std::string_view encoded;
     }
     const table[] {
-        { "",        ""             },
-        { "1",       "MQ=="         },
-        { "22",      "MjI="         },
-        { "333",     "MzMz"         },
-        { "4444",    "NDQ0NA=="     },
-        { "55555",   "NTU1NTU="     },
-        { "666666",  "NjY2NjY2"     },
-        { "abc:def", "YWJjOmRlZg==" },
+        { ""sv,        ""sv             },
+        { "1"sv,       "MQ=="sv         },
+        { "22"sv,      "MjI="sv         },
+        { "333"sv,     "MzMz"sv         },
+        { "4444"sv,    "NDQ0NA=="sv     },
+        { "55555"sv,   "NTU1NTU="sv     },
+        { "666666"sv,  "NjY2NjY2"sv     },
+        { "abc:def"sv, "YWJjOmRlZg=="sv },
     };
 
     char buf[128];
@@ -38,10 +39,10 @@ TEST(base64_test, encode_and_decode)
 
     for (auto&& entry : table) {
         len = base64::encode(entry.decoded.data(), entry.decoded.size(), buf);
-        ASSERT_EQ(string_view(buf, len), entry.encoded);
+        ASSERT_EQ(std::string_view(buf, len), entry.encoded);
 
         len = base64::decode(entry.encoded.data(), entry.encoded.size(), buf);
-        ASSERT_EQ(string_view(buf, len), entry.decoded);
+        ASSERT_EQ(std::string_view(buf, len), entry.decoded);
     }
 }
 
@@ -57,7 +58,7 @@ TEST(base64_test, stream_decode)
         dst += s.decode("==", 2, dst);
         *dst++ = '\0';
 
-        ASSERT_EQ(buf, "1"_sv);
+        ASSERT_EQ(buf, "1"sv);
     }
 
     {
@@ -68,7 +69,7 @@ TEST(base64_test, stream_decode)
         dst += s.decode("I=", 2, dst);
         *dst++ = '\0';
 
-        ASSERT_EQ(buf, "22"_sv);
+        ASSERT_EQ(buf, "22"sv);
     }
 
     {
@@ -80,7 +81,7 @@ TEST(base64_test, stream_decode)
         dst += s.decode("A==", 3, dst);
         *dst++ = '\0';
 
-        ASSERT_EQ(buf, "4444"_sv);
+        ASSERT_EQ(buf, "4444"sv);
     }
 
     {
@@ -93,7 +94,7 @@ TEST(base64_test, stream_decode)
         dst += s.decode("2",   1, dst);
         *dst++ = '\0';
 
-        ASSERT_EQ(buf, "666666"_sv);
+        ASSERT_EQ(buf, "666666"sv);
     }
 }
 
@@ -109,7 +110,7 @@ TEST(base64_test, stream_encode)
         dst += s.encode_finish(dst);
         *dst++ = '\0';
 
-        ASSERT_EQ(buf, "MQ=="_sv);
+        ASSERT_EQ(buf, "MQ=="sv);
     }
 
     {
@@ -121,7 +122,7 @@ TEST(base64_test, stream_encode)
         dst += s.encode_finish(dst);
         *dst++ = '\0';
 
-        ASSERT_EQ(buf, "MjI="_sv);
+        ASSERT_EQ(buf, "MjI="sv);
     }
 
     {
@@ -134,7 +135,7 @@ TEST(base64_test, stream_encode)
         dst += s.encode_finish(dst);
         *dst++ = '\0';
 
-        ASSERT_EQ(buf, "NDQ0NA=="_sv);
+        ASSERT_EQ(buf, "NDQ0NA=="sv);
     }
 
     {
@@ -147,7 +148,7 @@ TEST(base64_test, stream_encode)
         dst += s.encode_finish(dst);
         *dst++ = '\0';
 
-        ASSERT_EQ(buf, "NjY2NjY2"_sv);
+        ASSERT_EQ(buf, "NjY2NjY2"sv);
     }
 }
 

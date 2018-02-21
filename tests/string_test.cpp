@@ -6,12 +6,14 @@
 
 
 #include <amp/string.hpp>
-#include <amp/string_view.hpp>
+
+#include <string_view>
 
 #include <gtest/gtest.h>
 
 
 using namespace ::amp;
+using namespace ::std::literals;
 
 
 TEST(string_test, tokenize)
@@ -42,7 +44,7 @@ TEST(string_test, tokenize)
     }
 
     {
-        auto const s = "ends\nwith\nline\nbreak\n"_sv;
+        auto const s = "ends\nwith\nline\nbreak\n"sv;
         auto it = tokenize(s, '\n').begin();
 
         ASSERT_EQ("ends",  *it++);
@@ -52,7 +54,7 @@ TEST(string_test, tokenize)
     }
 
     {
-        auto const s = "adjacent\n\nline\nbreaks\n\n"_sv;
+        auto const s = "adjacent\n\nline\nbreaks\n\n"sv;
         auto it = tokenize(s, '\n').begin();
 
         ASSERT_EQ("adjacent", *it++);
@@ -61,7 +63,7 @@ TEST(string_test, tokenize)
     }
 
     {
-        auto const s = "    TRACK\t01 AUDIO  \r\n"_sv;
+        auto const s = "    TRACK\t01 AUDIO  \r\n"sv;
         auto const r = tokenize(s, " \t\r\n");
         auto it = r.begin();
 

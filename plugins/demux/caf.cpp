@@ -23,7 +23,6 @@
 #include <amp/numeric.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
-#include <amp/string_view.hpp>
 #include <amp/u8string.hpp>
 #include <amp/utility.hpp>
 
@@ -34,6 +33,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <limits>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -173,7 +173,7 @@ void demuxer::read_info_chunk(uint64 const size)
     tags.reserve(r.read<uint32,BE>());
 
     auto const text = reinterpret_cast<char const*>(r.peek());
-    auto const strings = tokenize(string_view{text, r.remain()}, '\0');
+    auto const strings = tokenize(std::string_view{text, r.remain()}, '\0');
 
     auto const last = strings.end();
     for (auto first = strings.begin(); first != last; ) {

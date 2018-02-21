@@ -26,6 +26,7 @@
 #include <cstdio>
 #include <iterator>
 #include <memory>
+#include <string_view>
 #include <utility>
 
 #include <FLAC/callback.h>
@@ -507,7 +508,7 @@ auto input::get_info(uint32 const /* chapter_number */)
     }
 
     auto get_comment = [](auto const& comment) noexcept {
-        return string_view {
+        return std::string_view {
             reinterpret_cast<char const*>(comment.entry),
             static_cast<std::size_t>(comment.length),
         };
