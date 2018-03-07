@@ -50,8 +50,7 @@ static int32 read(void* const opaque, void* const dst, int32 const n)
     AMP_ASSERT(n >= 0);
     try {
         auto&& file = *static_cast<io::stream*>(opaque);
-        return static_cast<int32>(file.try_read(static_cast<uchar*>(dst),
-                                                static_cast<std::size_t>(n)));
+        return static_cast<int32>(file.try_read(dst, as_unsigned(n)));
     }
     catch (...) {
         return -1;
@@ -88,7 +87,7 @@ static int seek_relative(void* const opaque, int64 const off, int const whence)
 
 static int seek_absolute(void* const opaque, int64 const pos)
 {
-    return seek_relative(opaque, pos, static_cast<int>(io::seekdir::beg));
+    return seek_relative(opaque, pos, as_underlying(io::seekdir::beg));
 }
 
 static int unget(void* const opaque, int const c)

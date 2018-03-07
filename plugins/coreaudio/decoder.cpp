@@ -5,7 +5,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-#include <amp/audio/channel_mapper.hpp>
 #include <amp/audio/codec.hpp>
 #include <amp/audio/decoder.hpp>
 #include <amp/audio/format.hpp>
@@ -13,15 +12,12 @@
 #include <amp/error.hpp>
 #include <amp/io/buffer.hpp>
 #include <amp/numeric.hpp>
-#include <amp/ref_ptr.hpp>
-#include <amp/scope_guard.hpp>
 #include <amp/stddef.hpp>
 #include <amp/type_traits.hpp>
 
 #include "error.hpp"
 
 #include <algorithm>
-#include <cstdlib>
 #include <memory>
 #include <type_traits>
 
@@ -33,7 +29,7 @@
 namespace std {
 
 template<>
-struct default_delete<remove_pointer_t<AudioConverterRef>>
+struct default_delete<std::remove_pointer_t<AudioConverterRef>>
 {
     void operator()(AudioConverterRef const conv) const noexcept
     { AudioConverterDispose(conv); }
@@ -95,7 +91,6 @@ private:
     static remove_pointer_t<AudioConverterComplexInputDataProc> callback;
 
     std::unique_ptr<remove_pointer_t<AudioConverterRef>> conv_;
-    std::unique_ptr<audio::channel_mapper> remap_;
     io::buffer src_buf_;
     AudioStreamBasicDescription iasbd_{};
     AudioStreamBasicDescription oasbd_{};
@@ -193,31 +188,6 @@ decoder::decoder(audio::codec_format& fmt)
                 conv_.get(), kAudioConverterDecompressionMagicCookie,
                 numeric_cast<uint32>(cookie->size()), cookie->data()));
     }
-
-    auto size = uint32{0};
-    verify(AudioConverterGetPropertyInfo(
-            conv_.get(), kAudioConverterOutputChannelLayout,
-            &size, nullptr));
-
-    if (size != 0) {
-        auto layout = static_cast<AudioChannelLayout*>(std::malloc(size));
-        if (!layout) {
-            raise_bad_alloc();
-        }
-        AMP_SCOPE_EXIT { std::free(layout); };
-
-        verify(AudioConverterGetProperty(
-                conv_.get(), kAudioConverterOutputChannelLayout,
-                &size, layout));
-
-        auto const layout_tag = static_cast<audio::channel_layout_tag>(
-            layout->mChannelLayoutTag);
-
-        if (layout_tag != audio::channel_layout_tag::use_bitmap) {
-            remap_ = audio::channel_mapper::create(layout_tag);
-            fmt.channel_layout = remap_->get_channel_layout();
-        }
-    }
 }
 
 void decoder::send(io::buffer& buf) noexcept
@@ -241,9 +211,6 @@ auto decoder::recv(audio::packet& pkt)
             this, &frames, &buffers, nullptr));
 
     pkt.resize(frames * oasbd_.mChannelsPerFrame, uninitialized);
-    if (remap_) {
-        remap_->process(pkt);
-    }
     return audio::decode_status::none;
 }
 

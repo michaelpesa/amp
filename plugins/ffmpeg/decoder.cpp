@@ -61,7 +61,7 @@ namespace {
 {
     char str[256];
     if (::av_strerror(ret, str, sizeof(str)) < 0) {
-        std::strcpy(str, "FFmpeg error code");
+        std::strcpy(str, "unknown error");
     }
     auto const ec = (ret == AVERROR_EOF) ? errc::end_of_file : errc::failure;
     raise(ec, "FFmpeg: %s", str);

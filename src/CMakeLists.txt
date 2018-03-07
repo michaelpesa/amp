@@ -9,7 +9,6 @@ find_package(CURL REQUIRED)
 
 
 add_executable(amp
-    audio/channel_mapper.cpp
     audio/circular_buffer.cpp
     audio/filter_chain.cpp
     audio/format.cpp
