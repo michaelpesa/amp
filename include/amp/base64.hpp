@@ -56,14 +56,14 @@ private:
 };
 
 
-AMP_INLINE std::size_t decode(void const* const src, std::size_t const len,
-                              void* const dst)
+inline std::size_t decode(void const* const src, std::size_t const len,
+                          void* const dst)
 {
     return base64::stream{}.decode(src, len, dst);
 }
 
-AMP_INLINE std::size_t encode(void const* const src, std::size_t const len,
-                              void* const dst)
+inline std::size_t encode(void const* const src, std::size_t const len,
+                          void* const dst)
 {
     base64::stream s;
     auto const ret = s.encode(src, len, dst);

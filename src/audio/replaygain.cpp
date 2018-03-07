@@ -20,7 +20,7 @@
 #include <cstddef>
 #include <cstdlib>
 
-#if defined(AMP_HAS_X86_FEATURES)
+#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
 # include <immintrin.h>
 #endif
 
@@ -29,7 +29,7 @@ namespace amp {
 namespace audio {
 namespace {
 
-#if defined(AMP_HAS_X86_FEATURES)
+#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
 
 AMP_TARGET("sse")
 inline void process_sse(float* const data, std::size_t const n,
@@ -81,16 +81,14 @@ inline void process_avx(float* const data, std::size_t const n,
     }
 }
 
-#endif  // AMP_HAS_X86_FEATURES
+#endif  // AMP_HAS_X86 || AMP_HAS_X64
 
 inline void process_generic(float* const data, std::size_t const n,
                             float const scale) noexcept
 {
     for (auto const i : xrange(n)) {
         auto const x = data[i] * scale;
-        data[i] = (x < -1.f) ? -1.f
-                : (x > +1.f) ? +1.f
-                :              x;
+        data[i] = (x < -1.f) ? -1.f : (x > +1.f) ? +1.f : x;
     }
 }
 
@@ -114,7 +112,7 @@ void replaygain_filter::process(audio::packet& pkt) const noexcept
     AMP_ASSERT(is_aligned(data, 32));
     AMP_ASSUME(is_aligned(data, 32));
 
-#if defined(AMP_HAS_X86_FEATURES)
+#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
     if (cpu::has_avx()) {
         return process_avx(data, pkt.size(), scale_);
     }

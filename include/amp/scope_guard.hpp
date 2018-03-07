@@ -21,10 +21,8 @@ template<typename F>
 class scope_guard
 {
 public:
-    static_assert(is_nothrow_destructible_v<F>,
-                  "scope_guard<F>: ~F() must be noexcept(true)");
-    static_assert(is_nothrow_move_constructible_v<F>,
-                  "scope_guard<F>: F(F&&) must be noexcept(true)");
+    static_assert(is_nothrow_destructible_v<F>, "");
+    static_assert(is_nothrow_move_constructible_v<F>, "");
 
     scope_guard() = delete;
     scope_guard(scope_guard const&) = delete;

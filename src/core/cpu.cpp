@@ -9,7 +9,7 @@
 
 #include "core/cpu.hpp"
 
-#if defined(AMP_HAS_X86_FEATURES)
+#if defined(AMP_CPU_FEATURE_LEVEL)
 # include <array>
 # include <tuple>
 # include <utility>
@@ -20,19 +20,14 @@
 # else
 #  error "unsupported compiler for target x86(_64)"
 # endif
-#elif defined(AMP_HAS_ARM_FEATURES)
-# include <asm/hwcap.h>
-# include <sys/auxv.h>
 #endif
 
 
-#if defined(AMP_HAS_X86_FEATURES) || defined(AMP_HAS_ARM_FEATURES)
+#if defined(AMP_CPU_FEATURE_LEVEL)
 
 namespace amp {
 namespace cpu {
 namespace {
-
-#if defined(AMP_HAS_X86_FEATURES)
 
 AMP_INLINE uint64 xgetbv(uint32 const xcr) noexcept
 {
@@ -151,45 +146,11 @@ done:
     return ret;
 }
 
-#elif defined(AMP_HAS_ARM64_FEATURES)
-
-AMP_INLINE auto detect_features() noexcept
-{
-    auto const hwcap = ::getauxval(AT_HWCAP);
-
-    auto ret = feature::neon;
-    if (hwcap & HWCAP_AES)   { ret |= feature::aes;   }
-    if (hwcap & HWCAP_CRC32) { ret |= feature::crc32; }
-    if (hwcap & HWCAP_PMULL) { ret |= feature::pmull; }
-    if (hwcap & HWCAP_SHA1)  { ret |= feature::sha1;  }
-    if (hwcap & HWCAP_SHA2)  { ret |= feature::sha2;  }
-    return ret;
-}
-
-#elif defined(AMP_HAS_ARM32_FEATURES)
-
-AMP_INLINE auto detect_features() noexcept
-{
-    auto const hwcap1 = ::getauxval(AT_HWCAP);
-    auto const hwcap2 = ::getauxval(AT_HWCAP2);
-
-    auto ret = feature::none;
-    if (hwcap1 & HWCAP_NEON)   { ret |= feature::neon;  }
-    if (hwcap2 & HWCAP2_AES)   { ret |= feature::aes;   }
-    if (hwcap2 & HWCAP2_CRC32) { ret |= feature::crc32; }
-    if (hwcap2 & HWCAP2_PMULL) { ret |= feature::pmull; }
-    if (hwcap2 & HWCAP2_SHA1)  { ret |= feature::sha1;  }
-    if (hwcap2 & HWCAP2_SHA2)  { ret |= feature::sha2;  }
-    return ret;
-}
-
-#endif
-
 }     // namespace <unnamed>
 
 cpu::feature const detected_features = cpu::detect_features();
 
 }}    // namespace amp::cpu
 
-#endif  // AMP_HAS_X86_FEATURES || AMP_HAS_ARM_FEATURES
+#endif  // AMP_CPU_FEATURE_LEVEL
 

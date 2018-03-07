@@ -25,7 +25,7 @@
 #include <cstddef>
 #include <utility>
 
-#if defined(AMP_HAS_X86_FEATURES)
+#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
 # include <immintrin.h>
 #endif
 
@@ -147,7 +147,7 @@ inline void convert<F32NE>(void const* const src, std::size_t const n,
 }
 
 
-#if defined(AMP_HAS_X86_FEATURES)
+#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
 
 #if __has_warning("-Wcast-align")
 # pragma clang diagnostic push
@@ -829,7 +829,7 @@ SPECIALIZE_CONVERT(F64BE, double, convert_F64, avx2, sse2)
 # pragma clang diagnostic pop
 #endif
 
-#endif  // AMP_HAS_X86_FEATURES
+#endif  // AMP_HAS_X86 || AMP_HAS_X64
 
 
 AMP_NOINLINE
@@ -943,7 +943,7 @@ private:
     void convert_planar(void const* const* const src, std::size_t const frames,
                         float* const dst)
     {
-#if defined(AMP_HAS_X86_FEATURES)
+#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
         if (channels == 2 && pack_2ch(src, frames, dst, st)) {
             return;
         }

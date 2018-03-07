@@ -64,26 +64,15 @@ public:
     {}
 
     constexpr iterator begin() const
-    noexcept(is_nothrow_copy_constructible_v<iterator>)
-    {
-        return beg_;
-    }
+    { return beg_; }
 
     constexpr iterator end() const
-    noexcept(is_nothrow_copy_constructible_v<iterator>)
-    {
-        return end_;
-    }
+    { return end_; }
 
     constexpr bool empty() const
-    noexcept(noexcept(std::declval<iterator>() == std::declval<iterator>()))
-    {
-        return (beg_ == end_);
-    }
+    { return (beg_ == end_); }
 
     constexpr size_type size() const
-    noexcept(noexcept(std::distance(std::declval<iterator>(),
-                                    std::declval<iterator>())))
     {
         static_assert(is_forward_iterator_v<iterator>, "");
         return static_cast<size_type>(std::distance(beg_, end_));
@@ -122,22 +111,22 @@ noexcept(noexcept(x.swap(y)))
 
 template<typename T>
 AMP_INLINE constexpr auto make_range(T first, T last)
-noexcept(is_nothrow_constructible_v<iterator_range<T>, T, T>)
 {
     return iterator_range<T>(std::move(first), std::move(last));
 }
 
 template<typename T>
 AMP_INLINE constexpr auto make_range(std::pair<T, T> p)
-noexcept(is_nothrow_constructible_v<iterator_range<T>, T, T>)
 {
     return iterator_range<T>(std::move(p.first), std::move(p.second));
 }
 
 template<typename T, typename Size>
-AMP_INLINE constexpr auto make_range(T const first, Size const n)
-noexcept(is_nothrow_constructible_v<iterator_range<T>, T, T> &&
-         is_convertible_v<Size, iterator_difference_t<T>>)
+AMP_INLINE constexpr auto make_range(T const first, Size const n) ->
+    enable_if_t<
+        is_convertible_v<Size, iterator_difference_t<T>>,
+        iterator_range<T>
+    >
 {
     return iterator_range<T>(first, std::next(first, n));
 }

@@ -10,7 +10,6 @@
 
 
 #include <amp/aux/operators.hpp>
-#include <amp/aux/string_search.hpp>
 #include <amp/error.hpp>
 #include <amp/memory.hpp>
 #include <amp/stddef.hpp>
@@ -713,37 +712,32 @@ public:
     size_type find(std::string_view const s,
                    size_type const pos = 0) const noexcept
     {
-        return aux::str_find<std::char_traits<char>>(
-            data(), size(), s.data(), pos, s.size());
+        return to_string_view().find(s, pos);
     }
 
     size_type find(value_type const c, size_type const pos = 0) const noexcept
     {
-        return aux::str_find<std::char_traits<char>>(
-            data(), size(), c, pos);
+        return to_string_view().find(c, pos);
     }
 
 
     size_type rfind(std::string_view const s,
                     size_type const pos = npos) const noexcept
     {
-        return aux::str_rfind<std::char_traits<char>>(
-            data(), size(), s.data(), pos, s.size());
+        return to_string_view().rfind(s, pos);
     }
 
     size_type rfind(value_type const c,
                     size_type const pos = npos) const noexcept
     {
-        return aux::str_rfind<std::char_traits<char>>(
-            data(), size(), c, pos);
+        return to_string_view().rfind(c, pos);
     }
 
 
     size_type find_first_of(std::string_view const s,
                             size_type const pos = 0) const noexcept
     {
-        return aux::str_find_first_of<std::char_traits<char>>(
-            data(), size(), s.data(), pos, s.size());
+        return to_string_view().find_first_of(s, pos);
     }
 
     size_type find_first_of(value_type const c,
@@ -756,8 +750,7 @@ public:
     size_type find_last_of(std::string_view const s,
                            size_type const pos = npos) const noexcept
     {
-        return aux::str_find_last_of<std::char_traits<char>>(
-            data(), size(), s.data(), pos, s.size());
+        return to_string_view().find_last_of(s, pos);
     }
 
     size_type find_last_of(value_type const c,
@@ -770,30 +763,26 @@ public:
     size_type find_first_not_of(std::string_view const s,
                                 size_type const pos = 0) const noexcept
     {
-        return aux::str_find_first_not_of<std::char_traits<char>>(
-            data(), size(), s.data(), pos, s.size());
+        return to_string_view().find_first_not_of(s, pos);
     }
 
     size_type find_first_not_of(value_type const c,
                                 size_type const pos = 0) const noexcept
     {
-        return aux::str_find_first_not_of<std::char_traits<char>>(
-            data(), size(), c, pos);
+        return to_string_view().find_first_not_of(c, pos);
     }
 
 
     size_type find_last_not_of(std::string_view const s,
                                size_type const pos = npos) const noexcept
     {
-        return aux::str_find_last_not_of<std::char_traits<char>>(
-            data(), size(), s.data(), pos, s.size());
+        return to_string_view().find_last_not_of(s, pos);
     }
 
     size_type find_last_not_of(value_type const c,
                                size_type const pos = npos) const noexcept
     {
-        return aux::str_find_last_not_of<std::char_traits<char>>(
-            data(), size(), c, pos);
+        return to_string_view().find_last_not_of(c, pos);
     }
 
 

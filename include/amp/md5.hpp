@@ -27,9 +27,8 @@ public:
     AMP_EXPORT void update(void const*, std::size_t) noexcept;
     AMP_EXPORT void finish(uint8(&)[16]) noexcept;
 
-    AMP_INLINE static void sum(void const* const msg,
-                               std::size_t const len,
-                               uint8(&digest)[16]) noexcept
+    static void sum(void const* const msg, std::size_t const len,
+                    uint8(&digest)[16]) noexcept
     {
         md5 ctx;
         ctx.update(msg, len);

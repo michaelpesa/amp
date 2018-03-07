@@ -16,69 +16,22 @@
 #include <cstddef>
 #include <utility>
 
-#if defined(AMP_HAS_X86_FEATURES)
+#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
 # include <immintrin.h>
-#elif defined(AMP_HAS_ARM_FEATURES)
-# include <arm_acle.h>
 #endif
 
 
 namespace amp {
 namespace {
 
-#if defined(AMP_HAS_ARM_FEATURES)
-inline uint32 crc32_update_armv8(uint8 const* buf, std::size_t len,
-                                 uint32 rem) noexcept
-{
-    for (; len != 0 && !is_aligned(buf, alignof(uint32)); --len) {
-        rem = __crc32b(rem, *buf++);
-    }
-    for (auto n = len / sizeof(uint32); n != 0; --n) {
-        rem = __crc32w(rem, io::load_aligned<uint32,LE>(buf));
-        buf = buf + sizeof(uint32);
-    }
-
-    if (len & sizeof(uint16)) {
-        rem = __crc32h(rem, io::load_aligned<uint16,LE>(buf));
-        buf = buf + sizeof(uint16);
-    }
-    if (len & sizeof(uint8)) {
-        rem = __crc32b(rem, *buf);
-    }
-    return rem;
-}
-
-inline uint32 crc32c_update_armv8(uint8 const* buf, std::size_t len,
-                                  uint32 rem) noexcept
-{
-    for (; len != 0 && !is_aligned(buf, alignof(uint32)); --len) {
-        rem = __crc32cb(rem, *buf++);
-    }
-    for (auto n = len / sizeof(uint32); n != 0; --n) {
-        rem = __crc32cw(rem, io::load_aligned<uint32,LE>(buf));
-        buf = buf + sizeof(uint32);
-    }
-
-    if (len & sizeof(uint16)) {
-        rem = __crc32ch(rem, io::load_aligned<uint16,LE>(buf));
-        buf = buf + sizeof(uint16);
-    }
-    if (len & sizeof(uint8)) {
-        rem = __crc32cb(rem, *buf);
-    }
-    return rem;
-}
-#endif  // AMP_HAS_ARM_FEATURES
-
-
-#if defined(AMP_HAS_X86_FEATURES)
+#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
 AMP_TARGET("sse4.2")
 inline uint32 crc32c_update_sse4_2(uint8 const* buf, std::size_t len,
                                    uint32 rem) noexcept
 {
 #if defined(AMP_HAS_X64)
     auto tmp = uint64{rem};
-    for (auto n = len / sizeof(uint64); n != 0; --n) {
+    for (auto i = len / sizeof(uint64); i != 0; --i) {
         tmp = _mm_crc32_u64(tmp, io::load<uint64,LE>(buf));
         buf = buf + sizeof(uint64);
     }
@@ -89,7 +42,7 @@ inline uint32 crc32c_update_sse4_2(uint8 const* buf, std::size_t len,
         buf = buf + sizeof(uint32);
     }
 #else
-    for (auto n = len / sizeof(uint32); n != 0; --n) {
+    for (auto i = len / sizeof(uint32); i != 0; --i) {
         rem = _mm_crc32_u32(rem, io::load<uint32,LE>(buf));
         buf = buf + sizeof(uint32);
     }
@@ -104,7 +57,7 @@ inline uint32 crc32c_update_sse4_2(uint8 const* buf, std::size_t len,
     }
     return rem;
 }
-#endif  // AMP_HAS_X86_FEATURES
+#endif  // AMP_HAS_X86 || AMP_HAS_X64
 
 
 using slicingby4_table = std::array<std::array<uint32, 256>, 4>;
@@ -139,7 +92,7 @@ uint32 slicingby4_update(uint8 const* buf, std::size_t len, uint32 rem,
         rem = (rem >> 8) ^ table[0][(rem ^ *buf++) & 0xff];
     }
 
-    for (auto n = len / sizeof(uint32); n != 0; --n) {
+    for (auto i = len / sizeof(uint32); i != 0; --i) {
         rem = rem ^ io::load_aligned<uint32,LE>(buf);
         rem = table[3][(rem >>  0) & 0xff]
             ^ table[2][(rem >>  8) & 0xff]
@@ -167,11 +120,6 @@ uint32 slicingby4_update(uint8 const* buf, std::size_t len, uint32 rem,
 uint32 crc32::update(void const* const buf, std::size_t const len,
                      uint32 const rem) noexcept
 {
-#if defined(AMP_HAS_ARM_FEATURES)
-    if (cpu::has_crc32()) {
-        return crc32_update_armv8(static_cast<uint8 const*>(buf), len, rem);
-    }
-#endif
     static constexpr auto table = gen_slicingby4_table<0xedb88320>{}();
     return slicingby4_update(static_cast<uint8 const*>(buf), len, rem, table);
 }
@@ -179,11 +127,7 @@ uint32 crc32::update(void const* const buf, std::size_t const len,
 uint32 crc32c::update(void const* const buf, std::size_t const len,
                       uint32 const rem) noexcept
 {
-#if defined(AMP_HAS_ARM_FEATURES)
-    if (cpu::has_crc32()) {
-        return crc32c_update_armv8(static_cast<uint8 const*>(buf), len, rem);
-    }
-#elif defined(AMP_HAS_X86_FEATURES)
+#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
     if (cpu::has_sse4_2()) {
         return crc32c_update_sse4_2(static_cast<uint8 const*>(buf), len, rem);
     }
