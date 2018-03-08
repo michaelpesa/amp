@@ -5,7 +5,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-#include <amp/muldiv.hpp>
 #include <amp/stddef.hpp>
 
 #include "audio/player.hpp"
@@ -44,7 +43,7 @@ void AudioInfoBar::refreshPlaybackPosition()
 void AudioInfoBar::refreshPlaybackBitRate()
 {
     playback_bit_rate_label->setText(QStringLiteral("%1 %2")
-                                     .arg(muldiv(cached_bit_rate, 1, 1000))
+                                     .arg(cached_bit_rate / 1000)
                                      .arg(tr("kbps")));
 }
 

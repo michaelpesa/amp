@@ -5,7 +5,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-#include <amp/muldiv.hpp>
+#include <amp/numeric.hpp>
 #include <amp/stddef.hpp>
 
 #include "media/track.hpp"

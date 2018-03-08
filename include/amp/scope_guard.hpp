@@ -24,7 +24,6 @@ public:
     static_assert(is_nothrow_destructible_v<F>, "");
     static_assert(is_nothrow_move_constructible_v<F>, "");
 
-    scope_guard() = delete;
     scope_guard(scope_guard const&) = delete;
     scope_guard& operator=(scope_guard&&) = delete;
     scope_guard& operator=(scope_guard const&) = delete;
@@ -62,19 +61,20 @@ private:
 };
 
 
-constexpr struct {
-    template<typename F>
-    AMP_INLINE auto operator^(F&& f) const noexcept
-    { return scope_guard<decay_t<F>>(std::forward<F>(f)); }
-}
-scope_exit{};
+namespace aux {
 
-}     // namespace amp
+enum class scope_exit {};
+
+template<typename F>
+AMP_INLINE auto operator+(aux::scope_exit, F&& f) noexcept
+{ return scope_guard<decay_t<F>>(std::forward<F>(f)); }
+
+}}    // namespace amp::aux
 
 
 #define AMP_SCOPE_EXIT                                                      \
     [[maybe_unused]] auto const& AMP_PP_ANON(amp_scope_exit_) =             \
-        ::amp::scope_exit ^ [&]() noexcept
+        ::amp::aux::scope_exit() + [&]() noexcept
 
 
 #endif  // AMP_INCLUDED_8D141994_3E94_4130_B7EE_144B64F98BCD

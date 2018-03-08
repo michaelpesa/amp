@@ -26,7 +26,7 @@
 namespace amp {
 namespace tags {
 
-using ::std::string_view;
+using std::string_view;
 
 
 AMP_NOINLINE

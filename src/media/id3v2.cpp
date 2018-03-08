@@ -12,7 +12,6 @@
 #include <amp/io/reader.hpp>
 #include <amp/io/stream.hpp>
 #include <amp/media/dictionary.hpp>
-#include <amp/media/id3.hpp>
 #include <amp/media/image.hpp>
 #include <amp/media/tags.hpp>
 #include <amp/net/endian.hpp>
@@ -517,7 +516,7 @@ void read_uslt_frame(io::reader r, media::dictionary& tags)
 }
 
 bool read_apic_frame(id3v2::header const& header, io::buffer& data,
-                     media::image_type const type, media::image& dest)
+                     media::image::type const type, media::image& dest)
 {
     io::reader r{data};
     auto const enc = read_string_encoding(r);
@@ -536,7 +535,7 @@ bool read_apic_frame(id3v2::header const& header, io::buffer& data,
 
     auto const apic_type = r.read<uint8>();
     if (apic_type != as_underlying(type)) {
-        if (type != media::image_type::front_cover || apic_type != 0) {
+        if (type != media::image::type::front_cover || apic_type != 0) {
             return false;
         }
     }
@@ -597,7 +596,7 @@ void read(io::stream& file, media::dictionary& dict)
     }
 }
 
-media::image find_image(io::stream& file, media::image_type const type)
+media::image find_image(io::stream& file, media::image::type const type)
 {
     media::image image;
 

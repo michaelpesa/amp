@@ -10,7 +10,7 @@
 #include <amp/error.hpp>
 #include <amp/io/stream.hpp>
 #include <amp/media/image.hpp>
-#include <amp/muldiv.hpp>
+#include <amp/numeric.hpp>
 #include <amp/stddef.hpp>
 
 #include "m3u.hpp"
@@ -35,7 +35,7 @@ public:
 
     auto get_format() const noexcept;
     auto get_info(uint32);
-    auto get_image(media::image_type);
+    auto get_image(media::image::type);
     auto get_chapter_count() const noexcept;
 
 private:
@@ -130,7 +130,7 @@ auto demuxer::get_info(uint32 const /* chapter_number */)
     return info;
 }
 
-auto demuxer::get_image(media::image_type)
+auto demuxer::get_image(media::image::type)
 {
     return media::image{};
 }

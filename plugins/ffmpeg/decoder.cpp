@@ -192,48 +192,49 @@ public:
 private:
     void create_blitter();
 
-    std::unique_ptr<audio::pcm::blitter> blitter;
-    std::unique_ptr<::AVCodecContext> context;
-    std::unique_ptr<::AVFrame> frame;
-    ::AVPacket packet;
-    bool planar{false};
+    std::unique_ptr<::AVCodecContext> context_;
+    std::unique_ptr<::AVFrame> frame_;
+    std::unique_ptr<audio::pcm::blitter> blitter_;
+    bool planar_{false};
 };
 
 
 decoder::decoder(audio::codec_format& fmt) :
-    context{open_codec_context(fmt)},
-    frame{::av_frame_alloc()}
+    context_{open_codec_context(fmt)},
+    frame_{::av_frame_alloc()}
 {
-    if (AMP_UNLIKELY(frame == nullptr)) {
+    if (AMP_UNLIKELY(!frame_)) {
         raise_bad_alloc();
     }
 
-    if (context->sample_fmt != ::AV_SAMPLE_FMT_NONE) {
+    if (context_->sample_fmt != ::AV_SAMPLE_FMT_NONE) {
         create_blitter();
     }
     if (fmt.channel_layout == 0) {
-        fmt.channel_layout = numeric_cast<uint32>(context->channel_layout);
+        fmt.channel_layout = numeric_cast<uint32>(context_->channel_layout);
     }
 }
 
 void decoder::send(io::buffer& buf)
 {
-    ::av_init_packet(&packet);
+    ::AVPacket pkt;
+    ::av_init_packet(&pkt);
+
     if (!buf.empty()) {
         buf.reserve(buf.size() + AV_INPUT_BUFFER_PADDING_SIZE);
-        packet.data = buf.data();
-        packet.size = numeric_cast<int>(buf.size());
+        pkt.data = buf.data();
+        pkt.size = numeric_cast<int>(buf.size());
     }
     else {
-        packet.data = nullptr;
-        packet.size = 0;
+        pkt.data = nullptr;
+        pkt.size = 0;
     }
-    verify(::avcodec_send_packet(context.get(), &packet));
+    verify(::avcodec_send_packet(context_.get(), &pkt));
 }
 
 auto decoder::recv(audio::packet& pkt)
 {
-    auto const ret = ::avcodec_receive_frame(context.get(), frame.get());
+    auto const ret = ::avcodec_receive_frame(context_.get(), frame_.get());
     if (ret != 0) {
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
             pkt.clear();
@@ -242,30 +243,30 @@ auto decoder::recv(audio::packet& pkt)
         ffmpeg::raise(ret);
     }
 
-    if (AMP_UNLIKELY(blitter == nullptr)) {
+    if (AMP_UNLIKELY(!blitter_)) {
         create_blitter();
     }
 
-    pkt.set_channel_layout(static_cast<uint32>(frame->channel_layout),
-                           static_cast<uint32>(frame->channels));
+    pkt.set_channel_layout(static_cast<uint32>(frame_->channel_layout),
+                           static_cast<uint32>(frame_->channels));
 
-    auto const frames = static_cast<uint>(frame->nb_samples);
-    auto const source = planar
-                      ? static_cast<void const*>(frame->data)
-                      : static_cast<void const*>(frame->data[0]);
+    auto const frames = static_cast<uint>(frame_->nb_samples);
+    auto const source = planar_
+                      ? static_cast<void const*>(frame_->data)
+                      : static_cast<void const*>(frame_->data[0]);
 
-    blitter->convert(source, frames, pkt);
+    blitter_->convert(source, frames, pkt);
     return audio::decode_status::incomplete;
 }
 
 void decoder::flush()
 {
-    ::avcodec_flush_buffers(context.get());
+    ::avcodec_flush_buffers(context_.get());
 }
 
 uint32 decoder::get_decoder_delay() const noexcept
 {
-    switch (as_underlying(context->codec_id)) {
+    switch (as_underlying(context_->codec_id)) {
     case ::AV_CODEC_ID_MP1:
     case ::AV_CODEC_ID_MP2:
         return 240 + 1;
@@ -279,46 +280,46 @@ uint32 decoder::get_decoder_delay() const noexcept
 void decoder::create_blitter()
 {
     audio::pcm::spec spec;
-    spec.channels = numeric_cast<uint32>(context->channels);
+    spec.channels = numeric_cast<uint32>(context_->channels);
     spec.flags = audio::pcm::host_endian;
 
-    switch (context->sample_fmt) {
+    switch (context_->sample_fmt) {
     case ::AV_SAMPLE_FMT_U8P:
-        planar = true;
+        planar_ = true;
         [[fallthrough]];
     case ::AV_SAMPLE_FMT_U8:
         spec.bits_per_sample = 8;
         break;
     case ::AV_SAMPLE_FMT_S16P:
-        planar = true;
+        planar_ = true;
         [[fallthrough]];
     case ::AV_SAMPLE_FMT_S16:
         spec.flags |= audio::pcm::signed_int;
         spec.bits_per_sample = 16;
         break;
     case ::AV_SAMPLE_FMT_S32P:
-        planar = true;
+        planar_ = true;
         [[fallthrough]];
     case ::AV_SAMPLE_FMT_S32:
         spec.flags |= audio::pcm::signed_int;
         spec.bits_per_sample = 32;
         break;
     case ::AV_SAMPLE_FMT_S64P:
-        planar = true;
+        planar_ = true;
         [[fallthrough]];
     case ::AV_SAMPLE_FMT_S64:
         spec.flags |= audio::pcm::signed_int;
         spec.bits_per_sample = 64;
         break;
     case ::AV_SAMPLE_FMT_FLTP:
-        planar = true;
+        planar_ = true;
         [[fallthrough]];
     case ::AV_SAMPLE_FMT_FLT:
         spec.flags |= audio::pcm::ieee_float;
         spec.bits_per_sample = 32;
         break;
     case ::AV_SAMPLE_FMT_DBLP:
-        planar = true;
+        planar_ = true;
         [[fallthrough]];
     case ::AV_SAMPLE_FMT_DBL:
         spec.flags |= audio::pcm::ieee_float;
@@ -327,14 +328,14 @@ void decoder::create_blitter()
     case ::AV_SAMPLE_FMT_NONE:
     case ::AV_SAMPLE_FMT_NB:
         raise(errc::unsupported_format, "invalid LibAV sample format: %#x",
-              context->sample_fmt);
+              context_->sample_fmt);
     }
 
-    if (planar) {
+    if (planar_) {
         spec.flags |= audio::pcm::non_interleaved;
     }
     spec.bytes_per_sample = spec.bits_per_sample / 8;
-    blitter = audio::pcm::blitter::create(spec);
+    blitter_ = audio::pcm::blitter::create(spec);
 }
 
 AMP_REGISTER_DECODER(

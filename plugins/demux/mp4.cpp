@@ -13,9 +13,7 @@
 #include <amp/io/buffer.hpp>
 #include <amp/io/reader.hpp>
 #include <amp/io/stream.hpp>
-#include <amp/media/id3.hpp>
 #include <amp/media/tags.hpp>
-#include <amp/muldiv.hpp>
 #include <amp/numeric.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
@@ -117,7 +115,7 @@ public:
     void seek(uint64);
 
     auto get_info(uint32);
-    auto get_image(media::image_type);
+    auto get_image(media::image::type);
     auto get_chapter_count() const noexcept;
 
 private:
@@ -292,7 +290,7 @@ auto demuxer::get_info(uint32 const number)
     return info;
 }
 
-auto demuxer::get_image(media::image_type)
+auto demuxer::get_image(media::image::type)
 {
     return movie.get_cover_art();
 }

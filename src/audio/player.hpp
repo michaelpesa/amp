@@ -10,6 +10,7 @@
 
 
 #include <amp/audio/output.hpp>
+#include <amp/numeric.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
@@ -76,10 +77,11 @@ public:
         tracks_.push(x);
     }
 
-    auto get_position() const noexcept
+    template<typename Duration = std::chrono::nanoseconds>
+    Duration get_position() const noexcept
     {
-        return std::chrono::nanoseconds(
-            position_.load(std::memory_order_relaxed));
+        auto const pos = position_.load(std::memory_order_relaxed);
+        return Duration{muldiv(pos, Duration::period::den, clock_rate_)};
     }
 
     auto get_bit_rate() const noexcept
@@ -120,6 +122,7 @@ private:
 
     AMP_INTERNAL_LINKAGE void run_thread_();
 
+    uint64 clock_rate_{-1ULL};
     audio::player_delegate& delegate_;
     spsc::queue<media::track> tracks_;
     spsc::queue<event> events_;

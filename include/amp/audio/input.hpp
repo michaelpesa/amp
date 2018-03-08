@@ -86,7 +86,7 @@ public:
 
     virtual audio::format get_format() = 0;
     virtual audio::stream_info get_info(uint32) = 0;
-    virtual media::image get_image(media::image_type) = 0;
+    virtual media::image get_image(media::image::type) = 0;
     virtual uint32 get_chapter_count() = 0;
 
     AMP_EXPORT
@@ -139,7 +139,7 @@ public:
     audio::stream_info get_info(uint32 const chapter_number) override
     { return base_.get_info(chapter_number); }
 
-    media::image get_image(media::image_type const type) override
+    media::image get_image(media::image::type const type) override
     { return base_.get_image(type); }
 
     uint32 get_chapter_count() override

@@ -11,7 +11,6 @@
 #include <amp/io/buffer.hpp>
 #include <amp/io/reader.hpp>
 #include <amp/io/stream.hpp>
-#include <amp/media/ape.hpp>
 #include <amp/media/dictionary.hpp>
 #include <amp/media/image.hpp>
 #include <amp/media/tags.hpp>
@@ -165,7 +164,7 @@ void read_no_preamble(void const* const data, std::size_t const size,
     }
 }
 
-media::image find_image(io::stream& file, media::image_type const type)
+media::image find_image(io::stream& file, media::image::type const type)
 {
     ape::header footer;
     if (!ape::find_footer_(file, footer)) {
@@ -173,10 +172,10 @@ media::image find_image(io::stream& file, media::image_type const type)
     }
 
     char const* key;
-    if (type == media::image_type::front_cover) {
+    if (type == media::image::type::front_cover) {
         key = "cover art (front)";
     }
-    else if (type == media::image_type::back_cover) {
+    else if (type == media::image::type::back_cover) {
         key = "cover art (back)";
     }
     else {

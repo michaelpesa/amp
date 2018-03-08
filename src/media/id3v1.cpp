@@ -7,7 +7,6 @@
 
 #include <amp/io/stream.hpp>
 #include <amp/media/dictionary.hpp>
-#include <amp/media/id3.hpp>
 #include <amp/media/tags.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>

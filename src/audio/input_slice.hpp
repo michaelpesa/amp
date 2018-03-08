@@ -68,7 +68,7 @@ public:
     audio::stream_info get_info(uint32 const number) override
     { return base_->get_info(number); }
 
-    media::image get_image(media::image_type const type) override
+    media::image get_image(media::image::type const type) override
     { return base_->get_image(type); }
 
     uint32 get_chapter_count() override

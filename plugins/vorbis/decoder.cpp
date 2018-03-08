@@ -12,9 +12,7 @@
 #include <amp/error.hpp>
 #include <amp/io/buffer.hpp>
 #include <amp/io/memory.hpp>
-#include <amp/numeric.hpp>
 #include <amp/range.hpp>
-#include <amp/scope_guard.hpp>
 #include <amp/stddef.hpp>
 
 #include "error.hpp"
@@ -52,12 +50,10 @@ public:
     uint32 get_decoder_delay() const noexcept;
 
 private:
-    ::vorbis_info       info{};
-    ::vorbis_comment    comm{};
-    ::vorbis_dsp_state  dsp{};
-    ::vorbis_block      block{};
-    ::ogg_packet        op{};
-    uint8 const*        remap;
+    ::vorbis_info vi_;
+    ::vorbis_comment vc_;
+    ::vorbis_dsp_state vd_;
+    ::vorbis_block vb_;
 };
 
 int split_xiph_headers(io::buffer& extra,
@@ -119,88 +115,86 @@ int split_xiph_headers(io::buffer& extra,
 
 decoder::decoder(audio::codec_format& fmt)
 {
-    ::vorbis_info_init(&info);
-    ::vorbis_comment_init(&comm);
-    auto guard1 = scope_exit ^ [&]{
-        ::vorbis_comment_clear(&comm);
-        ::vorbis_info_clear(&info);
-    };
+    ::vorbis_info_init(&vi_);
+    ::vorbis_comment_init(&vc_);
+    try {
+        uint8* headers[3];
+        uint32 lengths[3];
+        verify(split_xiph_headers(fmt.extra, headers, lengths));
 
-    uint8* headers[3];
-    uint32 lengths[3];
-    verify(split_xiph_headers(fmt.extra, headers, lengths));
+        for (auto const i : xrange(3)) {
+            ::ogg_packet op;
+            op.b_o_s  = (i == 0);
+            op.bytes  = lengths[i];
+            op.packet = headers[i];
+            verify(::vorbis_synthesis_headerin(&vi_, &vc_, &op));
+        }
 
-    for (auto const i : xrange(3)) {
-        op.b_o_s  = (i == 0);
-        op.bytes  = lengths[i];
-        op.packet = headers[i];
-        verify(::vorbis_synthesis_headerin(&info, &comm, &op));
+        if (AMP_UNLIKELY(vi_.rate <= 0)) {
+            raise(errc::unsupported_format,
+                  "invalid Vorbis sample rate: %ld", vi_.rate);
+        }
+        if (AMP_UNLIKELY(vi_.channels <= 0 || vi_.channels > 8)) {
+            raise(errc::unsupported_format,
+                  "invalid Vorbis channel count: %d", vi_.channels);
+        }
+
+        verify(::vorbis_synthesis_init(&vd_, &vi_));
+        verify(::vorbis_block_init(&vd_, &vb_));
+    }
+    catch (...) {
+        ::vorbis_comment_clear(&vc_);
+        ::vorbis_info_clear(&vi_);
+        throw;
     }
 
-    if (AMP_UNLIKELY(info.rate <= 0)) {
-        raise(errc::unsupported_format, "invalid Vorbis sample rate: %ld",
-              info.rate);
-    }
-    if (AMP_UNLIKELY(info.channels <= 0)) {
-        raise(errc::unsupported_format, "invalid Vorbis channel count: %d",
-              info.channels);
-    }
-
-    fmt.sample_rate    = static_cast<uint32>(info.rate);
-    fmt.channels       = static_cast<uint32>(info.channels);
+    fmt.sample_rate = static_cast<uint32>(vi_.rate);
+    fmt.channels = static_cast<uint32>(vi_.channels);
     fmt.channel_layout = audio::xiph_channel_layout(fmt.channels);
-    remap = vorbis::channel_mappings[fmt.channels - 1];
-
-    verify(::vorbis_synthesis_init(&dsp, &info));
-    auto guard2 = scope_exit ^ [&]{
-        ::vorbis_dsp_clear(&dsp);
-    };
-
-    verify(::vorbis_block_init(&dsp, &block));
-    guard2.dismiss();
-    guard1.dismiss();
 }
 
 decoder::~decoder()
 {
-    ::vorbis_block_clear(&block);
-    ::vorbis_dsp_clear(&dsp);
-    ::vorbis_comment_clear(&comm);
-    ::vorbis_info_clear(&info);
+    ::vorbis_block_clear(&vb_);
+    ::vorbis_dsp_clear(&vd_);
+    ::vorbis_comment_clear(&vc_);
+    ::vorbis_info_clear(&vi_);
 }
 
 void decoder::send(io::buffer& buf)
 {
     if (!buf.empty()) {
+        ::ogg_packet op;
         op.packet = buf.data();
-        op.bytes  = numeric_cast<long>(buf.size());
+        op.bytes = static_cast<long>(buf.size());
 
-        verify(::vorbis_synthesis(&block, &op));
-        verify(::vorbis_synthesis_blockin(&dsp, &block));
+        verify(::vorbis_synthesis(&vb_, &op));
+        verify(::vorbis_synthesis_blockin(&vd_, &vb_));
     }
 }
 
 auto decoder::recv(audio::packet& pkt)
 {
-    float** tmp;
-    auto frames = verify(::vorbis_synthesis_pcmout(&dsp, &tmp));
+    float** pcm;
+    auto frames = verify(::vorbis_synthesis_pcmout(&vd_, &pcm));
     if (!frames) {
         return audio::decode_status::none;
     }
 
-    float* planes[8];
-    for (auto const i : xrange(info.channels)) {
-        planes[i] = tmp[remap[i]];
+    auto const mapping = vorbis::channel_mappings[vi_.channels - 1];
+    float const* planes[8];
+    for (auto const i : xrange(vi_.channels)) {
+        planes[i] = pcm[mapping[i]];
     }
 
     pkt.fill_planar(planes, frames);
-    verify(::vorbis_synthesis_read(&dsp, as_signed(frames)));
+    verify(::vorbis_synthesis_read(&vd_, as_signed(frames)));
     return audio::decode_status::incomplete;
 }
 
 void decoder::flush()
 {
-    verify(::vorbis_synthesis_restart(&dsp));
+    verify(::vorbis_synthesis_restart(&vd_));
 }
 
 uint32 decoder::get_decoder_delay() const noexcept

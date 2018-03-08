@@ -19,33 +19,33 @@
 namespace amp {
 namespace media {
 
-enum class image_type : uint8 {
-    other = 0,
-    file_icon_32x32,
-    file_icon_other,
-    front_cover,
-    back_cover,
-    leaflet_page,
-    media,
-    lead_artist,
-    artist,
-    conductor,
-    band,
-    composer,
-    lyricist,
-    recording_location,
-    during_recording,
-    during_performance,
-    video_screen_capture,
-    bright_colored_fish,
-    illustration,
-    band_logotype,
-    publisher_logotype,
-};
-
 class image
 {
 public:
+    enum class type : uint8 {
+        other = 0,
+        file_icon_32x32,
+        file_icon_other,
+        front_cover,
+        back_cover,
+        leaflet_page,
+        media,
+        lead_artist,
+        artist,
+        conductor,
+        band,
+        composer,
+        lyricist,
+        recording_location,
+        during_recording,
+        during_performance,
+        video_screen_capture,
+        bright_colored_fish,
+        illustration,
+        band_logotype,
+        publisher_logotype,
+    };
+
     image() = default;
 
     explicit image(io::buffer x) noexcept :

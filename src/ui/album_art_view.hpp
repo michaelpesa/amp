@@ -9,6 +9,7 @@
 #define AMP_INCLUDED_B1D95D6E_950F_4FA6_8590_9D161F308E5F
 
 
+#include <amp/media/image.hpp>
 #include <amp/net/uri.hpp>
 #include <amp/stddef.hpp>
 
@@ -27,7 +28,6 @@ QT_END_NAMESPACE
 namespace amp {
 namespace media {
     class track;
-    enum class image_type : uint8;
 }
 
 
@@ -56,10 +56,10 @@ protected:
 private:
     void onMenuSaveAs();
 
-    ImageServer*      server;
-    QImage            cached_image;
-    net::uri          cached_image_uri;
-    media::image_type image_type;
+    ImageServer* server;
+    QImage cached_image;
+    net::uri cached_image_uri;
+    media::image::type image_type;
 };
 
 }}    // namespace amp::ui

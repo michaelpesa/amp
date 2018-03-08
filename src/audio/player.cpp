@@ -9,7 +9,7 @@
 #include <amp/audio/input.hpp>
 #include <amp/audio/packet.hpp>
 #include <amp/error.hpp>
-#include <amp/muldiv.hpp>
+#include <amp/numeric.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
 
@@ -105,6 +105,7 @@ void player::stop()
     position_.store(0, std::memory_order_relaxed);
     bit_rate_.store(0, std::memory_order_relaxed);
     state_ = player_state::stopped;
+    clock_rate_ = -1ULL;
 }
 
 void player::pause()
@@ -161,6 +162,8 @@ void player::run_thread_()
         return stream_;
     }());
 
+    clock_rate_ = uint64{sink.format.sample_rate} * sink.format.channels;
+
     auto calibrate = [&]{
         chain.calibrate(source.format, sink.format, source.rg_info);
     };
@@ -178,22 +181,20 @@ void player::run_thread_()
         }
     };
 
-    auto const sink_rate = sink.format.sample_rate * sink.format.channels;
-
     auto sync_clock = [&](uint64 const delta) {
         sample += delta;
 
+        auto const delay = sink.delay();
         uint64 pos;
         if (AMP_LIKELY(!pending_source)) {
-            pos = muldiv(sample - sink.delay(), std::nano::den, sink_rate);
+            pos = sample - delay;
         }
-        else if (sample >= sink.delay()) {
+        else if (sample >= delay) {
             commit_track_change();
-            pos = muldiv(sample - sink.delay(), std::nano::den, sink_rate);
+            pos = sample - delay;
         }
         else {
-            pos = position_.load(std::memory_order_relaxed);
-            pos += muldiv(delta, std::nano::den, sink_rate);
+            pos = position_.load(std::memory_order_relaxed) + delta;
         }
         position_.store(pos, std::memory_order_relaxed);
     };
@@ -233,9 +234,8 @@ void player::run_thread_()
             pos = muldiv(pos, source.format.sample_rate, std::nano::den);
             pos = std::min(pos, source.frames - 1);
 
-            sample = muldiv(pos, sink_rate, source.format.sample_rate);
-            position_.store(muldiv(sample, std::nano::den, sink_rate),
-                            std::memory_order_relaxed);
+            sample = muldiv(pos, clock_rate_, source.format.sample_rate);
+            position_.store(sample, std::memory_order_relaxed);
 
             source->seek(pos);
             chain.flush();

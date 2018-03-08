@@ -199,24 +199,24 @@ public:
 
     auto get_format() const noexcept;
     auto get_info(uint32);
-    auto get_image(media::image_type);
+    auto get_image(media::image::type);
     auto get_chapter_count() const noexcept;
 
 private:
     void on_link_changed_(int);
 
-    ref_ptr<io::stream> file;
-    std::unique_ptr<::OggOpusFile> handle;
-    uint8 const* mapping;
-    uint32 channels;
-    int link;
+    ref_ptr<io::stream> file_;
+    std::unique_ptr<::OggOpusFile> handle_;
+    uint8 const* mapping_;
+    uint32 channels_;
+    int link_;
 };
 
 input::input(ref_ptr<io::stream> s, audio::open_mode) :
-    file(std::move(s)),
-    handle(opus::open(*file))
+    file_(std::move(s)),
+    handle_(opus::open(*file_))
 {
-    opus::check(::op_set_gain_offset(handle.get(), OP_ABSOLUTE_GAIN, 0));
+    opus::check(::op_set_gain_offset(handle_.get(), OP_ABSOLUTE_GAIN, 0));
     on_link_changed_(-1);
 }
 
@@ -224,34 +224,34 @@ void input::read(audio::packet& pkt)
 {
     // The documentation for ::op_read_float (in <opus/opusfile.h>) recommends
     // a buffer size of at least 120 ms (5760 samples) at 48 kHz per channel.
-    pkt.resize(5760 * channels);
+    pkt.resize(5760 * channels_);
     auto const samples = static_cast<int>(pkt.samples());
 
     int ret, li;
-    do { ret = ::op_read_float(handle.get(), pkt.data(), samples, &li); }
+    do { ret = ::op_read_float(handle_.get(), pkt.data(), samples, &li); }
     while (AMP_UNLIKELY(ret == OP_HOLE));
 
-    if (link != li) {
+    if (link_ != li) {
         on_link_changed_(li);
     }
 
     auto const frames = opus::check(ret);
-    pkt.resize(frames * channels);
+    pkt.resize(frames * channels_);
 
-    if (mapping != nullptr) {
+    if (mapping_ != nullptr) {
         float tmp[8];
         auto const last = pkt.end();
         for (auto first = pkt.begin(); first != last; ) {
-            for (auto const i : xrange(channels)) {
-                tmp[mapping[i]] = first[i];
+            for (auto const i : xrange(channels_)) {
+                tmp[mapping_[i]] = first[i];
             }
-            for (auto const i : xrange(channels)) {
+            for (auto const i : xrange(channels_)) {
                 *first++ = tmp[i];
             }
         }
     }
 
-    auto const instant_bit_rate = ::op_bitrate_instant(handle.get());
+    auto const instant_bit_rate = ::op_bitrate_instant(handle_.get());
     if (instant_bit_rate > 0) {
         pkt.set_bit_rate(static_cast<uint32>(instant_bit_rate));
     }
@@ -259,16 +259,16 @@ void input::read(audio::packet& pkt)
 
 void input::seek(uint64 const frame)
 {
-    opus::check(::op_pcm_seek(handle.get(), numeric_cast<int64>(frame)));
-    on_link_changed_(::op_current_link(handle.get()));
+    opus::check(::op_pcm_seek(handle_.get(), numeric_cast<int64>(frame)));
+    on_link_changed_(::op_current_link(handle_.get()));
 }
 
 auto input::get_format() const noexcept
 {
     audio::format format{};
-    format.sample_rate    = 48000;
-    format.channels       = channels;
-    format.channel_layout = audio::xiph_channel_layout(channels);
+    format.sample_rate = 48000;
+    format.channels = channels_;
+    format.channel_layout = audio::xiph_channel_layout(channels_);
     return format;
 }
 
@@ -279,17 +279,17 @@ auto input::get_info(uint32 const number)
     info.props.emplace(tags::container, "Ogg");
 
     on_link_changed_(static_cast<int>(number - 1));
-    info.average_bit_rate = check(::op_bitrate(handle.get(), link));
-    info.frames = check(::op_pcm_total(handle.get(), link));
+    info.average_bit_rate = check(::op_bitrate(handle_.get(), link_));
+    info.frames = check(::op_pcm_total(handle_.get(), link_));
 
-    if (link != -1) {
-        for (auto const prev : xrange(link)) {
-            info.start_offset += check(::op_pcm_total(handle.get(), prev));
+    if (link_ != -1) {
+        for (auto const i : xrange(link_)) {
+            info.start_offset += check(::op_pcm_total(handle_.get(), i));
         }
     }
 
-    auto const tags = ::op_tags(handle.get(), link);
-    auto const head = ::op_head(handle.get(), link);
+    auto const tags = ::op_tags(handle_.get(), link_);
+    auto const head = ::op_head(handle_.get(), link_);
     if (tags != nullptr && head != nullptr) {
         optional<int32> track_gain;
         for (auto const i : xrange(as_unsigned(tags->comments))) {
@@ -333,9 +333,9 @@ auto input::get_info(uint32 const number)
     return info;
 }
 
-auto input::get_image(media::image_type const type)
+auto input::get_image(media::image::type const type)
 {
-    auto const tags = ::op_tags(handle.get(), -1);
+    auto const tags = ::op_tags(handle_.get(), -1);
     if (tags == nullptr || tags->comments <= 0) {
         return media::image{};
     }
@@ -368,14 +368,14 @@ auto input::get_image(media::image_type const type)
 
 auto input::get_chapter_count() const noexcept
 {
-    auto const count = ::op_link_count(handle.get());
+    auto const count = ::op_link_count(handle_.get());
     return (count > 1) ? static_cast<uint32>(count) : 0;
 }
 
 void input::on_link_changed_(int const li)
 {
-    link = li;
-    channels = opus::check(::op_channel_count(handle.get(), link));
+    link_ = li;
+    channels_ = opus::check(::op_channel_count(handle_.get(), link_));
 
     static constexpr uint8 channel_mappings[8][8] {
         { 0 },
@@ -388,11 +388,11 @@ void input::on_link_changed_(int const li)
         { 0, 2, 1, 6, 7, 4, 5, 3 },
     };
 
-    if (channels >= 3 && channels <= 8 && channels != 4) {
-        mapping = channel_mappings[channels - 1];
+    if (channels_ >= 3 && channels_ <= 8 && channels_ != 4) {
+        mapping_ = channel_mappings[channels_ - 1];
     }
     else {
-        mapping = nullptr;
+        mapping_ = nullptr;
     }
 }
 

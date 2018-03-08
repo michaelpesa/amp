@@ -9,6 +9,7 @@
 #define AMP_INCLUDED_A30B2407_797C_468E_9D49_CF093BFD84D4
 
 
+#include <amp/media/image.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
 
@@ -17,13 +18,42 @@
 
 
 namespace amp {
+namespace media {
+    class dictionary;
+}
+
+namespace ape {
+
+AMP_EXPORT bool find(io::stream&);
+AMP_EXPORT void read(io::stream&, media::dictionary&);
+AMP_EXPORT void read_no_preamble(void const*, std::size_t, media::dictionary&);
+AMP_EXPORT media::image find_image(io::stream&, media::image::type);
+
+}     // namespace ape
+
+namespace id3v1 {
+
+AMP_EXPORT u8string get_genre_name(uint8);
+AMP_EXPORT bool find(io::stream&);
+AMP_EXPORT void read(io::stream&, media::dictionary&);
+
+}     // namespace id3v1
+
+namespace id3v2 {
+
+AMP_EXPORT bool skip(io::stream&);
+AMP_EXPORT void read(io::stream&, media::dictionary&);
+AMP_EXPORT media::image find_image(io::stream&, media::image::type);
+
+}     // namespace id3v2
+
+
 namespace tags {
 
-AMP_EXPORT
-u8string map_common_key(std::string_view);
+AMP_EXPORT u8string map_common_key(std::string_view);
 
 
-using namespace ::std::literals;
+using namespace std::literals;
 
 constexpr auto bit_rate               = "bit rate"sv;
 constexpr auto bits_per_sample        = "bits per sample"sv;

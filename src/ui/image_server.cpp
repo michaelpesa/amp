@@ -31,7 +31,7 @@ namespace {
 using namespace ::std::literals;
 
 
-auto findInternalImage(net::uri const& location, media::image_type const type)
+auto findInternalImage(net::uri const& location, media::image::type const type)
 {
     if (auto input = audio::input::resolve(location, audio::pictures)) {
         auto image = input->get_image(type);
@@ -41,7 +41,7 @@ auto findInternalImage(net::uri const& location, media::image_type const type)
     return QImage{};
 }
 
-auto findExternalImage(net::uri const& location, media::image_type const type)
+auto findExternalImage(net::uri const& location, media::image::type const type)
 {
     auto const directory = fs::parent_path(location.get_file_path());
     if (!fs::exists(directory)) {
@@ -50,31 +50,31 @@ auto findExternalImage(net::uri const& location, media::image_type const type)
 
     char const* const* prefixes;
 
-    if (type == media::image_type::front_cover) {
+    if (type == media::image::type::front_cover) {
         static constexpr char const* front_prefixes[] {
             "album", "cover", "folder", "front", nullptr,
         };
         prefixes = front_prefixes;
     }
-    else if (type == media::image_type::back_cover) {
+    else if (type == media::image::type::back_cover) {
         static constexpr char const* back_prefixes[] {
             "back", nullptr,
         };
         prefixes = back_prefixes;
     }
-    else if (type == media::image_type::media) {
+    else if (type == media::image::type::media) {
         static constexpr char const* media_prefixes[] {
             "cd", "disc", "media", nullptr,
         };
         prefixes = media_prefixes;
     }
-    else if (type == media::image_type::file_icon_32x32) {
+    else if (type == media::image::type::file_icon_32x32) {
         static constexpr char const* file_icon_prefixes[] {
             "file_icon", "icon", nullptr,
         };
         prefixes = file_icon_prefixes;
     }
-    else if (type == media::image_type::artist) {
+    else if (type == media::image::type::artist) {
         static constexpr char const* artist_prefixes[] {
             "artist", nullptr,
         };
@@ -111,7 +111,7 @@ auto findExternalImage(net::uri const& location, media::image_type const type)
     return image;
 }
 
-auto resolveImage(net::uri const& location, media::image_type const type)
+auto resolveImage(net::uri const& location, media::image::type const type)
 {
     QImage image;
     if (location.scheme() == "file"sv) {
@@ -140,8 +140,8 @@ ImageServer::ImageServer(QObject* const parent) :
             return !stop_;
         };
 
-        net::uri          location;
-        media::image_type type;
+        net::uri location;
+        media::image::type type;
 
         while (wait()) {
             if (requests_.pop(std::tie(location, type))) {

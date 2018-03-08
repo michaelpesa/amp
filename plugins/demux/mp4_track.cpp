@@ -13,7 +13,6 @@
 #include <amp/error.hpp>
 #include <amp/io/buffer.hpp>
 #include <amp/io/memory.hpp>
-#include <amp/muldiv.hpp>
 #include <amp/numeric.hpp>
 #include <amp/optional.hpp>
 #include <amp/range.hpp>

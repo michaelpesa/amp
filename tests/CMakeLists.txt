@@ -8,7 +8,7 @@ add_executable(amp_test
     ../src/core/error.cpp
     ../src/core/filesystem.cpp
     ../src/core/md5.cpp
-    ../src/core/muldiv.cpp
+    ../src/core/numeric.cpp
     ../src/core/rbtree.cpp
     ../src/core/u8string.cpp
     ../src/core/uri.cpp
@@ -28,8 +28,7 @@ add_executable(amp_test
     intrusive_slist_test.cpp
     md5_test.cpp
     media_dictionary_test.cpp
-    muldiv_test.cpp
-    numeric_cast_test.cpp
+    numeric_test.cpp
     optional_test.cpp
     spsc_queue_test.cpp
     string_test.cpp

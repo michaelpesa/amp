@@ -11,7 +11,7 @@
 
 #include <amp/audio/format.hpp>
 #include <amp/audio/output.hpp>
-#include <amp/muldiv.hpp>
+#include <amp/numeric.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/stddef.hpp>
 

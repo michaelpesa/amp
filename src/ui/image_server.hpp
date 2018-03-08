@@ -36,7 +36,7 @@ public:
     explicit ImageServer(QObject* = nullptr);
     ~ImageServer();
 
-    void send(net::uri location, media::image_type const type)
+    void send(net::uri location, media::image::type const type)
     {
         requests_.emplace(std::move(location), type);
         cnd_.notify_one();
@@ -46,7 +46,7 @@ Q_SIGNALS:
     void recv(QImage);
 
 private:
-    using request = std::pair<net::uri, media::image_type>;
+    using request = std::pair<net::uri, media::image::type>;
 
     bool                    stop_;
     spsc::queue<request>    requests_;

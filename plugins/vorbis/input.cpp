@@ -106,21 +106,21 @@ public:
 
     auto get_format() const noexcept;
     auto get_info(uint32);
-    auto get_image(media::image_type);
+    auto get_image(media::image::type);
     auto get_chapter_count() const noexcept;
 
 private:
-    ref_ptr<io::stream> file;
-    vorbis::file_handle handle;
-    audio::format format;
-    uint8 const* mapping;
+    ref_ptr<io::stream> file_;
+    vorbis::file_handle handle_;
+    audio::format format_;
+    uint8 const* mapping_;
 };
 
 input::input(ref_ptr<io::stream> s, audio::open_mode) :
-    file{std::move(s)},
-    handle{file.get()}
+    file_{std::move(s)},
+    handle_{file_.get()}
 {
-    auto const info = ::ov_info(&handle, -1);
+    auto const info = ::ov_info(&handle_, -1);
     if (AMP_UNLIKELY(info == nullptr)) {
         raise(errc::failure, "Vorbis file info cannot be null");
     }
@@ -129,9 +129,9 @@ input::input(ref_ptr<io::stream> s, audio::open_mode) :
               info->channels);
     }
 
-    format.sample_rate = numeric_cast<uint32>(info->rate);
-    format.channels = static_cast<uint32>(info->channels);
-    format.channel_layout = audio::xiph_channel_layout(format.channels);
+    format_.sample_rate = numeric_cast<uint32>(info->rate);
+    format_.channels = static_cast<uint32>(info->channels);
+    format_.channel_layout = audio::xiph_channel_layout(format_.channels);
 
     static constexpr uint8 channel_mappings[8][8] {
         { 0 },
@@ -143,14 +143,14 @@ input::input(ref_ptr<io::stream> s, audio::open_mode) :
         { 0, 2, 1, 6, 5, 3, 4 },
         { 0, 2, 1, 7, 5, 6, 3, 4 },
     };
-    mapping = channel_mappings[format.channels - 1];
+    mapping_ = channel_mappings[format_.channels - 1];
 }
 
 void input::read(audio::packet& pkt)
 {
     float** tmp;
     long ret;
-    do { ret = ::ov_read_float(&handle, &tmp, 5760, nullptr); }
+    do { ret = ::ov_read_float(&handle_, &tmp, 5760, nullptr); }
     while (AMP_UNLIKELY(ret == OV_HOLE));
 
     auto const frames = verify(ret);
@@ -160,23 +160,23 @@ void input::read(audio::packet& pkt)
     AMP_ASSERT(tmp != nullptr);
 
     float* planes[8];
-    for (auto const i : xrange(format.channels)) {
-        planes[i] = tmp[mapping[i]];
+    for (auto const i : xrange(format_.channels)) {
+        planes[i] = tmp[mapping_[i]];
     }
 
-    pkt.set_bit_rate(static_cast<uint32>(::ov_bitrate_instant(&handle)));
-    pkt.set_channel_layout(format.channel_layout);
+    pkt.set_bit_rate(static_cast<uint32>(::ov_bitrate_instant(&handle_)));
+    pkt.set_channel_layout(format_.channel_layout);
     pkt.fill_planar(planes, frames);
 }
 
 void input::seek(uint64 const pts)
 {
-    verify(::ov_pcm_seek(&handle, as_signed(pts)));
+    verify(::ov_pcm_seek(&handle_, as_signed(pts)));
 }
 
 auto input::get_format() const noexcept
 {
-    return format;
+    return format_;
 }
 
 auto input::get_info(uint32 const number)
@@ -186,18 +186,18 @@ auto input::get_info(uint32 const number)
     info.props.emplace(tags::container, "Ogg");
 
     auto const link = static_cast<int32>(number) - 1;
-    auto const bit_rate = verify(::ov_bitrate(&handle, link));
+    auto const bit_rate = verify(::ov_bitrate(&handle_, link));
 
     info.average_bit_rate = numeric_cast<uint32>(bit_rate);
-    info.frames = verify(::ov_pcm_total(&handle, link));
+    info.frames = verify(::ov_pcm_total(&handle_, link));
 
     if (link != -1) {
         for (auto const prev : xrange(link)) {
-            info.start_offset += verify(::ov_pcm_total(&handle, prev));
+            info.start_offset += verify(::ov_pcm_total(&handle_, prev));
         }
     }
 
-    auto const vc = ::ov_comment(&handle, link);
+    auto const vc = ::ov_comment(&handle_, link);
     if (vc && (vc->comments > 0)) {
         for (auto const i : xrange(as_unsigned(vc->comments))) {
             if (vc->comment_lengths[i] <= 0) {
@@ -227,9 +227,9 @@ auto input::get_info(uint32 const number)
     return info;
 }
 
-auto input::get_image(media::image_type const type)
+auto input::get_image(media::image::type const type)
 {
-    auto const vc = ::ov_comment(&handle, -1);
+    auto const vc = ::ov_comment(&handle_, -1);
     if (vc == nullptr || vc->comments <= 0) {
         return media::image{};
     }
@@ -262,7 +262,7 @@ auto input::get_image(media::image_type const type)
 
 auto input::get_chapter_count() const noexcept
 {
-    return (handle.links > 1) ? static_cast<uint32>(handle.links) : 0;
+    return (handle_.links > 1) ? static_cast<uint32>(handle_.links) : 0;
 }
 
 AMP_REGISTER_INPUT(input, "oga", "ogg");

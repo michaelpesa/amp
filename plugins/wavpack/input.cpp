@@ -13,8 +13,6 @@
 #include <amp/bitops.hpp>
 #include <amp/error.hpp>
 #include <amp/io/stream.hpp>
-#include <amp/media/ape.hpp>
-#include <amp/media/id3.hpp>
 #include <amp/media/image.hpp>
 #include <amp/media/tags.hpp>
 #include <amp/numeric.hpp>
@@ -206,83 +204,83 @@ public:
 
     auto get_format() const;
     auto get_info(uint32);
-    auto get_image(media::image_type);
+    auto get_image(media::image::type);
     auto get_chapter_count() const noexcept;
 
 private:
-    ref_ptr<io::stream> const wv_file;
-    ref_ptr<io::stream> const wvc_file;
-    wavpack::context const context;
-    std::unique_ptr<audio::pcm::blitter> blitter;
-    std::unique_ptr<int32[]> readbuf;
-    uint32 const channels;
-    uint32 const frames_per_packet;
+    ref_ptr<io::stream> const wv_file_;
+    ref_ptr<io::stream> const wvc_file_;
+    wavpack::context const context_;
+    std::unique_ptr<audio::pcm::blitter> blitter_;
+    std::unique_ptr<int32[]> buf_;
+    uint32 const channels_;
+    uint32 const frames_per_packet_;
 };
 
 
 input::input(ref_ptr<io::stream> s, audio::open_mode const mode) :
-    wv_file(std::move(s)),
-    wvc_file(wavpack::open_correction_file(wv_file->location())),
-    context(wavpack::open_context(wv_file.get(), wvc_file.get())),
-    channels(wavpack::get_channels(context)),
-    frames_per_packet(wavpack::get_sample_rate(context) / 10)
+    wv_file_(std::move(s)),
+    wvc_file_(wavpack::open_correction_file(wv_file_->location())),
+    context_(wavpack::open_context(wv_file_.get(), wvc_file_.get())),
+    channels_(wavpack::get_channels(context_)),
+    frames_per_packet_(wavpack::get_sample_rate(context_) / 10)
 {
     if (!(mode & audio::playback)) {
         return;
     }
 
     audio::pcm::spec spec;
-    spec.channels = channels;
+    spec.channels = channels_;
     spec.flags = audio::pcm::host_endian;
-    if (::WavpackGetMode(context.get()) & MODE_FLOAT) {
+    if (::WavpackGetMode(context_.get()) & MODE_FLOAT) {
         spec.flags |= audio::pcm::ieee_float;
     }
     else {
         spec.flags |= audio::pcm::signed_int;
     }
-
-    spec.bits_per_sample = align_up(wavpack::get_bits_per_sample(context), 8);
+    spec.bits_per_sample = align_up(wavpack::get_bits_per_sample(context_), 8);
     spec.bytes_per_sample = 4;
-    blitter = audio::pcm::blitter::create(spec);
-    readbuf.reset(new int32[frames_per_packet * channels]);
+
+    blitter_ = audio::pcm::blitter::create(spec);
+    buf_.reset(new int32[frames_per_packet_ * channels_]);
 }
 
 void input::read(audio::packet& pkt)
 {
-    auto const frames = ::WavpackUnpackSamples(context.get(), readbuf.get(),
-                                               frames_per_packet);
+    auto const frames = ::WavpackUnpackSamples(context_.get(), buf_.get(),
+                                               frames_per_packet_);
     if (frames != 0) {
-        blitter->convert(readbuf.get(), frames, pkt);
+        blitter_->convert(buf_.get(), frames, pkt);
     }
-    else if (::WavpackGetNumErrors(context.get()) == 0) {
+    else if (::WavpackGetNumErrors(context_.get()) == 0) {
         pkt.clear();
     }
     else {
         raise(errc::failure, "WavPack read failed: %s",
-              ::WavpackGetErrorMessage(context.get()));
+              ::WavpackGetErrorMessage(context_.get()));
     }
 
-    auto const bit_rate = ::WavpackGetInstantBitrate(context.get());
+    auto const bit_rate = ::WavpackGetInstantBitrate(context_.get());
     pkt.set_bit_rate(numeric_try_cast<uint32>(bit_rate).value_or(0));
 }
 
 void input::seek(uint64 const pts)
 {
     auto const sample = static_cast<uint32>(pts);
-    auto const ret = ::WavpackSeekSample(context.get(), sample);
+    auto const ret = ::WavpackSeekSample(context_.get(), sample);
 
     if (AMP_UNLIKELY(ret < 0)) {
         raise(errc::failure, "WavPack seek failed: %s",
-              ::WavpackGetErrorMessage(context.get()));
+              ::WavpackGetErrorMessage(context_.get()));
     }
 }
 
 auto input::get_format() const
 {
     audio::format fmt;
-    fmt.channels       = channels;
-    fmt.channel_layout = wavpack::get_channel_mask(context);
-    fmt.sample_rate    = wavpack::get_sample_rate(context);
+    fmt.channels       = channels_;
+    fmt.channel_layout = wavpack::get_channel_mask(context_);
+    fmt.sample_rate    = wavpack::get_sample_rate(context_);
     return fmt;
 }
 
@@ -290,11 +288,11 @@ auto input::get_info(uint32 const /* chapter_number */)
 {
     audio::stream_info info{get_format()};
     info.codec_id         = audio::codec::wavpack;
-    info.frames           = wavpack::get_num_samples(context);
-    info.bits_per_sample  = wavpack::get_bits_per_sample(context);
-    info.average_bit_rate = wavpack::get_average_bit_rate(context);
+    info.frames           = wavpack::get_num_samples(context_);
+    info.bits_per_sample  = wavpack::get_bits_per_sample(context_);
+    info.average_bit_rate = wavpack::get_average_bit_rate(context_);
 
-    auto const mode = ::WavpackGetMode(context.get());
+    auto const mode = ::WavpackGetMode(context_.get());
     auto const encoding = (mode & MODE_WVC)      ? "hybrid"
                         : (mode & MODE_LOSSLESS) ? "lossless"
                         :                          "lossy";
@@ -315,18 +313,18 @@ auto input::get_info(uint32 const /* chapter_number */)
     info.props.emplace(tags::codec_profile, std::move(profile));
     info.props.emplace(tags::container, "WavPack");
 
-    if (ape::find(*wv_file)) {
-        ape::read(*wv_file, info.tags);
+    if (ape::find(*wv_file_)) {
+        ape::read(*wv_file_, info.tags);
     }
-    else if (id3v1::find(*wv_file)) {
-        id3v1::read(*wv_file, info.tags);
+    else if (id3v1::find(*wv_file_)) {
+        id3v1::read(*wv_file_, info.tags);
     }
     return info;
 }
 
-auto input::get_image(media::image_type const type)
+auto input::get_image(media::image::type const type)
 {
-    return ape::find_image(*wv_file, type);
+    return ape::find_image(*wv_file_, type);
 }
 
 auto input::get_chapter_count() const noexcept

@@ -19,7 +19,6 @@
 #include <amp/media/dictionary.hpp>
 #include <amp/media/image.hpp>
 #include <amp/media/tags.hpp>
-#include <amp/muldiv.hpp>
 #include <amp/numeric.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
@@ -111,7 +110,7 @@ public:
     void seek(uint64);
 
     auto get_info(uint32);
-    auto get_image(media::image_type);
+    auto get_image(media::image::type);
     auto get_chapter_count() const noexcept;
 
 private:
@@ -440,7 +439,7 @@ auto demuxer::get_info(uint32 const /* chapter_number */)
     return info;
 }
 
-auto demuxer::get_image(media::image_type)
+auto demuxer::get_image(media::image::type)
 {
     return media::image{};
 }

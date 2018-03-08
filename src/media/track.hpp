@@ -11,8 +11,8 @@
 
 #include <amp/aux/operators.hpp>
 #include <amp/media/dictionary.hpp>
-#include <amp/muldiv.hpp>
 #include <amp/net/uri.hpp>
+#include <amp/numeric.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
 

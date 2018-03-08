@@ -10,7 +10,6 @@
 #include <amp/error.hpp>
 #include <amp/io/reader.hpp>
 #include <amp/media/dictionary.hpp>
-#include <amp/media/id3.hpp>
 #include <amp/media/image.hpp>
 #include <amp/media/tags.hpp>
 #include <amp/net/endian.hpp>

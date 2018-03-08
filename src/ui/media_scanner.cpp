@@ -9,8 +9,8 @@
 #include <amp/audio/input.hpp>
 #include <amp/io/stream.hpp>
 #include <amp/media/tags.hpp>
-#include <amp/muldiv.hpp>
 #include <amp/net/uri.hpp>
+#include <amp/numeric.hpp>
 #include <amp/range.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
@@ -92,7 +92,7 @@ void finalizeTrack(media::track& track, audio::stream_info const& info)
         track.info.emplace(tags::codec,
                            audio::codec::name(info.codec_id));
     }
-    if (auto const kbps = muldiv(info.average_bit_rate, 1, 1000)) {
+    if (auto const kbps = info.average_bit_rate / 1000) {
         track.info.emplace(tags::bit_rate,
                            u8format("%" PRIu32 " kbps", kbps));
     }

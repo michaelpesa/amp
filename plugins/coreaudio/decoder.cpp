@@ -91,7 +91,7 @@ private:
     static remove_pointer_t<AudioConverterComplexInputDataProc> callback;
 
     std::unique_ptr<remove_pointer_t<AudioConverterRef>> conv_;
-    io::buffer src_buf_;
+    io::buffer buf_;
     AudioStreamBasicDescription iasbd_{};
     AudioStreamBasicDescription oasbd_{};
     AudioStreamPacketDescription aspd_{};
@@ -107,10 +107,10 @@ OSStatus decoder::callback(
 {
     auto&& self = *static_cast<decoder*>(inUserData);
 
-    auto const src_size = static_cast<uint32>(self.src_buf_.size());
-    if (src_size != 0) {
-        ioData->mBuffers[0].mData         = self.src_buf_.data();
-        ioData->mBuffers[0].mDataByteSize = src_size;
+    auto const bytes = static_cast<uint32>(self.buf_.size());
+    if (bytes != 0) {
+        ioData->mBuffers[0].mData         = self.buf_.data();
+        ioData->mBuffers[0].mDataByteSize = bytes;
         *ioNumberDataPackets              = 1;
     }
     else {
@@ -122,7 +122,7 @@ OSStatus decoder::callback(
     if (outDataPacketDescription != nullptr) {
         self.aspd_.mStartOffset            = 0;
         self.aspd_.mVariableFramesInPacket = 0;
-        self.aspd_.mDataByteSize           = src_size;
+        self.aspd_.mDataByteSize           = bytes;
         *outDataPacketDescription          = &self.aspd_;
     }
     return noErr;
@@ -192,7 +192,7 @@ decoder::decoder(audio::codec_format& fmt)
 
 void decoder::send(io::buffer& buf) noexcept
 {
-    src_buf_.swap(buf);
+    buf_.swap(buf);
 }
 
 auto decoder::recv(audio::packet& pkt)
@@ -217,7 +217,7 @@ auto decoder::recv(audio::packet& pkt)
 void decoder::flush()
 {
     verify(AudioConverterReset(conv_.get()));
-    src_buf_.clear();
+    buf_.clear();
 }
 
 uint32 decoder::get_decoder_delay() const noexcept

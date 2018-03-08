@@ -11,11 +11,8 @@
 #include <amp/audio/utility.hpp>
 #include <amp/error.hpp>
 #include <amp/io/stream.hpp>
-#include <amp/media/ape.hpp>
-#include <amp/media/id3.hpp>
 #include <amp/media/image.hpp>
 #include <amp/media/tags.hpp>
-#include <amp/muldiv.hpp>
 #include <amp/numeric.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
@@ -115,38 +112,38 @@ public:
 
     auto get_format() const noexcept;
     auto get_info(uint32);
-    auto get_image(media::image_type);
+    auto get_image(media::image::type);
     auto get_chapter_count() const;
 
 private:
-    ref_ptr<io::stream> file;
-    ::mpc_reader reader;
-    ::mpc_streaminfo si;
-    std::unique_ptr<::mpc_demux_t> handle;
+    ref_ptr<io::stream> file_;
+    ::mpc_reader reader_;
+    ::mpc_streaminfo si_;
+    std::unique_ptr<::mpc_demux_t> demux_;
 };
 
 input::input(ref_ptr<io::stream> s, audio::open_mode) :
-    file(std::move(s)),
-    reader{
+    file_(std::move(s)),
+    reader_{
         mpc::read,
         mpc::seek,
         mpc::tell,
         mpc::get_size,
         mpc::can_seek,
-        file.get(),
+        file_.get(),
     },
-    handle(::mpc_demux_init(&reader))
+    demux_(::mpc_demux_init(&reader_))
 {
-    if (AMP_UNLIKELY(handle == nullptr)) {
+    if (AMP_UNLIKELY(demux_ == nullptr)) {
         raise_bad_alloc();
     }
 
-    ::mpc_demux_get_info(handle.get(), &si);
-    if (si.beg_silence >= si.samples) {
+    ::mpc_demux_get_info(demux_.get(), &si_);
+    if (si_.beg_silence >= si_.samples) {
         raise(errc::out_of_bounds,
               "Musepack: beginning silence (%" PRIu64 ") cannot equal "
               "or exceed the total samples (%" PRIu64 ")",
-              si.beg_silence, si.samples);
+              si_.beg_silence, si_.samples);
     }
 }
 
@@ -158,7 +155,7 @@ void input::read(audio::packet& pkt)
     frame.buffer = pkt.data();
 
     do {
-        auto const ret = ::mpc_demux_decode(handle.get(), &frame);
+        auto const ret = ::mpc_demux_decode(demux_.get(), &frame);
         if (AMP_UNLIKELY(ret != 0)) {
             raise(errc::failure,
                   "failed to decode Musepack frame (code=0x%08x)", ret);
@@ -171,13 +168,13 @@ void input::read(audio::packet& pkt)
     while (frame.samples == 0);
 
     auto const bits = static_cast<uint32>(frame.bits);
-    pkt.set_bit_rate(muldiv(bits, si.sample_freq, frame.samples));
-    pkt.resize(frame.samples * si.channels);
+    pkt.set_bit_rate(muldiv(bits, si_.sample_freq, frame.samples));
+    pkt.resize(frame.samples * si_.channels);
 }
 
 void input::seek(uint64 const frame)
 {
-    auto const ret = ::mpc_demux_seek_sample(handle.get(), frame);
+    auto const ret = ::mpc_demux_seek_sample(demux_.get(), frame);
     if (AMP_UNLIKELY(ret != 0)) {
         raise(errc::failure,
               "failed to seek in Musepack stream (code=0x%08x)", ret);
@@ -187,8 +184,8 @@ void input::seek(uint64 const frame)
 auto input::get_format() const noexcept
 {
     audio::format format;
-    format.sample_rate    = si.sample_freq;
-    format.channels       = si.channels;
+    format.sample_rate = si_.sample_freq;
+    format.channels = si_.channels;
     format.channel_layout = audio::guess_channel_layout(format.channels);
     return format;
 }
@@ -196,19 +193,19 @@ auto input::get_format() const noexcept
 auto input::get_info(uint32 const number)
 {
     audio::stream_info info{get_format()};
-    info.average_bit_rate = numeric_cast<uint32>(si.average_bitrate);
-    info.codec_id = (si.stream_version == 8)
+    info.average_bit_rate = numeric_cast<uint32>(si_.average_bitrate);
+    info.codec_id = (si_.stream_version == 8)
                   ? audio::codec::musepack_sv8
                   : audio::codec::musepack_sv7;
 
-    info.props.emplace(tags::codec_profile, si.profile_name);
-    info.props.emplace(tags::encoder, si.encoder);
+    info.props.emplace(tags::codec_profile, si_.profile_name);
+    info.props.emplace(tags::encoder, si_.encoder);
 
-    if (ape::find(*file)) {
-        ape::read(*file, info.tags);
+    if (ape::find(*file_)) {
+        ape::read(*file_, info.tags);
     }
-    else if (id3v1::find(*file)) {
-        id3v1::read(*file, info.tags);
+    else if (id3v1::find(*file_)) {
+        id3v1::read(*file_, info.tags);
     }
 
     auto insert_gain = [&](std::string_view const key, uint16 const x) {
@@ -224,23 +221,23 @@ auto input::get_info(uint32 const number)
         }
     };
 
-    insert_gain(tags::rg_album_gain, si.gain_album);
-    insert_peak(tags::rg_album_peak, si.peak_album);
+    insert_gain(tags::rg_album_gain, si_.gain_album);
+    insert_peak(tags::rg_album_peak, si_.peak_album);
 
     if (number == 0) {
-        info.frames = si.samples - si.beg_silence;
-        insert_gain(tags::rg_track_gain, si.gain_title);
-        insert_peak(tags::rg_track_peak, si.peak_title);
+        info.frames = si_.samples - si_.beg_silence;
+        insert_gain(tags::rg_track_gain, si_.gain_title);
+        insert_peak(tags::rg_track_peak, si_.peak_title);
     }
     else {
         auto const index = static_cast<int>(number - 1);
-        auto const chap = ::mpc_demux_chap(handle.get(), index);
+        auto const chap = ::mpc_demux_chap(demux_.get(), index);
 
-        if (auto const next = ::mpc_demux_chap(handle.get(), index + 1)) {
+        if (auto const next = ::mpc_demux_chap(demux_.get(), index + 1)) {
             info.frames = next->sample;
         }
         else {
-            info.frames = si.samples - si.beg_silence;
+            info.frames = si_.samples - si_.beg_silence;
         }
         info.frames -= chap->sample;
         info.start_offset = chap->sample;
@@ -256,14 +253,14 @@ auto input::get_info(uint32 const number)
     return info;
 }
 
-auto input::get_image(media::image_type const type)
+auto input::get_image(media::image::type const type)
 {
-    return ape::find_image(*file, type);
+    return ape::find_image(*file_, type);
 }
 
 auto input::get_chapter_count() const
 {
-    return numeric_cast<uint32>(::mpc_demux_chap_nb(handle.get()));
+    return numeric_cast<uint32>(::mpc_demux_chap_nb(demux_.get()));
 }
 
 AMP_REGISTER_INPUT(input, "mp+", "mpc", "mpp");

@@ -34,7 +34,7 @@ namespace ui {
 AlbumArtView::AlbumArtView(QWidget* const parent) :
     QWidget{parent},
     server{new ImageServer(this)},
-    image_type{media::image_type::front_cover}
+    image_type{media::image::type::front_cover}
 {
     setContextMenuPolicy(Qt::ActionsContextMenu);
     setMinimumSize(96, 96);
@@ -58,8 +58,8 @@ AlbumArtView::AlbumArtView(QWidget* const parent) :
 
     auto group = new QActionGroup(this);
 
-    auto addCoverTypeAction = [&](media::image_type const type,
-                                  char const*       const text) {
+    auto addCoverTypeAction = [&](media::image::type const type,
+                                  char const*        const text) {
         auto const checked = group->actions().empty();
 
         action = group->addAction(tr(text));
@@ -75,11 +75,11 @@ AlbumArtView::AlbumArtView(QWidget* const parent) :
                 });
     };
 
-    addCoverTypeAction(media::image_type::front_cover,     "Front cover");
-    addCoverTypeAction(media::image_type::back_cover,      "Back cover");
-    addCoverTypeAction(media::image_type::file_icon_32x32, "File icon");
-    addCoverTypeAction(media::image_type::media,           "Media");
-    addCoverTypeAction(media::image_type::artist,          "Artist");
+    addCoverTypeAction(media::image::type::front_cover,     "Front cover");
+    addCoverTypeAction(media::image::type::back_cover,      "Back cover");
+    addCoverTypeAction(media::image::type::file_icon_32x32, "File icon");
+    addCoverTypeAction(media::image::type::media,           "Media");
+    addCoverTypeAction(media::image::type::artist,          "Artist");
     addActions(group->actions());
 }
 

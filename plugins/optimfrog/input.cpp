@@ -12,9 +12,8 @@
 #include <amp/audio/pcm.hpp>
 #include <amp/error.hpp>
 #include <amp/io/buffer.hpp>
-#include <amp/media/ape.hpp>
-#include <amp/media/id3.hpp>
 #include <amp/media/image.hpp>
+#include <amp/media/tags.hpp>
 #include <amp/numeric.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/type_traits.hpp>
@@ -31,7 +30,7 @@ namespace amp {
 namespace ofr {
 namespace {
 
-using namespace ::std::literals;
+using namespace std::literals;
 
 
 extern "C" {
@@ -137,27 +136,12 @@ inline sample_type get_sample_type(::OptimFROG_Info const& file_info)
           file_info.sampleType);
 }
 
-inline uint32 get_channel_layout(::OptimFROG_Info const& file_info) noexcept
-{
-    std::string_view const channel_config{file_info.channelConfig};
-
-    if (channel_config == "MONO"sv) {
-        return audio::channel_layout_mono;
-    }
-    if (channel_config == "STEREO_LR"sv) {
-        return audio::channel_layout_stereo;
-    }
-    return audio::guess_channel_layout(file_info.channels);
-}
-
 
 struct decoder_delete
 {
     void operator()(void* const instance) const noexcept
     { ::OptimFROG_destroyInstance(instance); }
 };
-
-using decoder_handle = std::unique_ptr<void, decoder_delete>;
 
 
 class input
@@ -170,76 +154,74 @@ public:
 
     auto get_format() const noexcept;
     auto get_info(uint32);
-    auto get_image(media::image_type);
+    auto get_image(media::image::type);
     auto get_chapter_count() const noexcept;
 
 private:
-    ref_ptr<io::stream> file;
-    std::unique_ptr<audio::pcm::blitter> blitter;
-    ofr::decoder_handle decoder;
-    io::buffer readbuf;
-    ::OptimFROG_Info file_info;
-    uint32 bytes_per_frame;
+    ref_ptr<io::stream> file_;
+    std::unique_ptr<audio::pcm::blitter> blitter_;
+    std::unique_ptr<void, ofr::decoder_delete> decoder_;
+    io::buffer buf_;
+    ::OptimFROG_Info file_info_;
+    uint32 bytes_per_frame_;
 };
 
 input::input(ref_ptr<io::stream> s, audio::open_mode) :
-    file{std::move(s)},
-    decoder{::OptimFROG_createInstance()}
+    file_{std::move(s)},
+    decoder_{::OptimFROG_createInstance()}
 {
-    if (AMP_UNLIKELY(decoder == nullptr)) {
+    if (AMP_UNLIKELY(decoder_ == nullptr)) {
         raise_bad_alloc();
     }
 
     auto const reader = const_cast<::ReadInterface*>(&ofr::callbacks);
-    auto ok = ::OptimFROG_openExt(decoder.get(), reader, file.get(), false);
+    auto ok = ::OptimFROG_openExt(decoder_.get(), reader, file_.get(), false);
     if (AMP_UNLIKELY(!ok)) {
         raise(errc::failure, "failed to open OptimFROG decoder");
     }
 
-    ok = ::OptimFROG_getInfo(decoder.get(), &file_info);
+    ok = ::OptimFROG_getInfo(decoder_.get(), &file_info_);
     if (AMP_UNLIKELY(!ok)) {
         raise(errc::failure, "failed to obtain OptimFROG file info");
     }
 
-    bytes_per_frame = file_info.channels * (file_info.bitspersample / 8);
+    bytes_per_frame_ = file_info_.channels * (file_info_.bitspersample / 8);
+    buf_.resize((file_info_.samplerate / 4) * bytes_per_frame_, uninitialized);
 
-    auto const readbuf_size = (file_info.samplerate / 4) * bytes_per_frame;
-    readbuf.resize(readbuf_size, uninitialized);
-
-    auto const sample_type = ofr::get_sample_type(file_info);
+    auto const sample_type = ofr::get_sample_type(file_info_);
 
     audio::pcm::spec spec;
     spec.bytes_per_sample = sample_type.bytes_per_sample;
     spec.bits_per_sample = spec.bytes_per_sample * 8;
-    spec.channels = file_info.channels;
+    spec.channels = file_info_.channels;
     spec.flags = audio::pcm::host_endian;
     if (sample_type.sign) {
         spec.flags |= audio::pcm::signed_int;
     }
-    blitter = audio::pcm::blitter::create(spec);
+    blitter_ = audio::pcm::blitter::create(spec);
 }
 
-void input::read(audio::packet& dest)
+void input::read(audio::packet& pkt)
 {
-    auto const frames = static_cast<uint32>(readbuf.size() / bytes_per_frame);
-    auto const ret = ::OptimFROG_read(decoder.get(), readbuf.data(), frames);
+    auto const frames = static_cast<uint32>(buf_.size() / bytes_per_frame_);
+    auto const ret = ::OptimFROG_read(decoder_.get(), buf_.data(), frames);
 
     if (AMP_UNLIKELY(ret <= 0)) {
         if (ret == 0) {
-            dest.clear();
+            pkt.clear();
             return;
         }
         raise(errc::failure, "failed to read OptimFROG packet");
     }
 
-    blitter->convert(readbuf.data(), static_cast<uint32>(ret), dest);
-    dest.set_bit_rate(file_info.bitrate * 1000);
+    blitter_->convert(buf_.data(), static_cast<uint32>(ret), pkt);
+    pkt.set_bit_rate(file_info_.bitrate * 1000);
 }
 
 void input::seek(uint64 const pts)
 {
     auto const point = numeric_cast<int64>(pts);
-    auto const ok = ::OptimFROG_seekPoint(decoder.get(), point);
+    auto const ok = ::OptimFROG_seekPoint(decoder_.get(), point);
 
     if (AMP_UNLIKELY(!ok)) {
         raise(errc::failure, "failed to seek in OptimFROG file");
@@ -249,9 +231,9 @@ void input::seek(uint64 const pts)
 auto input::get_format() const noexcept
 {
     audio::format fmt;
-    fmt.sample_rate    = file_info.samplerate;
-    fmt.channels       = file_info.channels;
-    fmt.channel_layout = ofr::get_channel_layout(file_info);
+    fmt.sample_rate = file_info_.samplerate;
+    fmt.channels = file_info_.channels;
+    fmt.channel_layout = audio::guess_channel_layout(fmt.channels);
     return fmt;
 }
 
@@ -259,22 +241,22 @@ auto input::get_info(uint32 const /* chapter_number */)
 {
     audio::stream_info info{get_format()};
     info.codec_id         = audio::codec::optimfrog;
-    info.bits_per_sample  = file_info.bitspersample;
-    info.average_bit_rate = file_info.bitrate * 1000;
-    info.frames           = numeric_cast<uint64>(file_info.noPoints);
+    info.bits_per_sample  = file_info_.bitspersample;
+    info.average_bit_rate = file_info_.bitrate * 1000;
+    info.frames           = numeric_cast<uint64>(file_info_.noPoints);
 
-    if (ape::find(*file)) {
-        ape::read(*file, info.tags);
+    if (ape::find(*file_)) {
+        ape::read(*file_, info.tags);
     }
-    else if (id3v1::find(*file)) {
-        id3v1::read(*file, info.tags);
+    else if (id3v1::find(*file_)) {
+        id3v1::read(*file_, info.tags);
     }
     return info;
 }
 
-auto input::get_image(media::image_type const type)
+auto input::get_image(media::image::type const type)
 {
-    return ape::find_image(*file, type);
+    return ape::find_image(*file_, type);
 }
 
 auto input::get_chapter_count() const noexcept

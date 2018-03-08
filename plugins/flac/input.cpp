@@ -13,10 +13,9 @@
 #include <amp/error.hpp>
 #include <amp/io/memory.hpp>
 #include <amp/io/stream.hpp>
-#include <amp/media/id3.hpp>
 #include <amp/media/image.hpp>
 #include <amp/media/tags.hpp>
-#include <amp/muldiv.hpp>
+#include <amp/numeric.hpp>
 #include <amp/range.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
@@ -78,25 +77,25 @@ public:
         using iterator_category = std::input_iterator_tag;
 
         iterator() noexcept :
-            iter{}
+            iter_{}
         {}
 
         iterator& operator++()
         {
-            if (!FLAC__metadata_iterator_next(iter)) {
-                iter = nullptr;
+            if (!FLAC__metadata_iterator_next(iter_)) {
+                iter_ = nullptr;
             }
             return *this;
         }
 
         pointer operator->() const
-        { return FLAC__metadata_iterator_get_block(iter); }
+        { return FLAC__metadata_iterator_get_block(iter_); }
 
         reference operator*() const
         { return *operator->(); }
 
         bool operator==(iterator const& x) const noexcept
-        { return (iter == x.iter); }
+        { return (iter_ == x.iter_); }
 
         bool operator!=(iterator const& x) const noexcept
         { return !(*this == x); }
@@ -105,27 +104,27 @@ public:
         friend class metadata_chain;
 
         explicit iterator(FLAC__Metadata_Iterator* const x) noexcept :
-            iter{x}
+            iter_{x}
         {}
 
-        FLAC__Metadata_Iterator* iter;
+        FLAC__Metadata_Iterator* iter_;
     };
 
     iterator begin() const
-    { return iterator{first.get()}; }
+    { return iterator{first_.get()}; }
 
     iterator end() const noexcept
     { return iterator{};  }
 
     explicit metadata_chain(io::stream& file, bool const is_ogg) :
-        chain{FLAC__metadata_chain_new()},
-        first{FLAC__metadata_iterator_new()}
+        chain_{FLAC__metadata_chain_new()},
+        first_{FLAC__metadata_iterator_new()}
     {
-        if (AMP_UNLIKELY(!chain || !first)) {
+        if (AMP_UNLIKELY(!chain_ || !first_)) {
             raise_bad_alloc();
         }
 
-        static constexpr FLAC__IOCallbacks iocb {
+        static constexpr FLAC__IOCallbacks callbacks {
             metadata_chain::read,
             metadata_chain::write,
             metadata_chain::seek,
@@ -137,23 +136,23 @@ public:
         auto const read = is_ogg
                         ? &FLAC__metadata_chain_read_ogg_with_callbacks
                         : &FLAC__metadata_chain_read_with_callbacks;
-        if (AMP_UNLIKELY(!(*read)(chain.get(), &file, iocb))) {
+        if (AMP_UNLIKELY(!(*read)(chain_.get(), &file, callbacks))) {
             raise(errc::failure, "failed to read FLAC stream metadata");
         }
 
-        //FLAC__metadata_chain_merge_padding(chain.get());
-        FLAC__metadata_iterator_init(first.get(), chain.get());
+        //FLAC__metadata_chain_merge_padding(chain_.get());
+        FLAC__metadata_iterator_init(first_.get(), chain_.get());
     }
 
 private:
-    static remove_pointer_t<FLAC__IOCallback_Read>  read;
+    static remove_pointer_t<FLAC__IOCallback_Read> read;
     static remove_pointer_t<FLAC__IOCallback_Write> write;
-    static remove_pointer_t<FLAC__IOCallback_Seek>  seek;
-    static remove_pointer_t<FLAC__IOCallback_Tell>  tell;
-    static remove_pointer_t<FLAC__IOCallback_Eof>   eof;
+    static remove_pointer_t<FLAC__IOCallback_Seek> seek;
+    static remove_pointer_t<FLAC__IOCallback_Tell> tell;
+    static remove_pointer_t<FLAC__IOCallback_Eof> eof;
 
-    std::unique_ptr<FLAC__Metadata_Chain>    chain;
-    std::unique_ptr<FLAC__Metadata_Iterator> first;
+    std::unique_ptr<FLAC__Metadata_Chain> chain_;
+    std::unique_ptr<FLAC__Metadata_Iterator> first_;
 };
 
 
@@ -289,7 +288,7 @@ public:
 
     auto get_format() const noexcept;
     auto get_info(uint32);
-    auto get_image(media::image_type);
+    auto get_image(media::image::type);
     auto get_chapter_count() const noexcept;
 
 private:
@@ -302,14 +301,14 @@ private:
     static remove_pointer_t<FLAC__StreamDecoderMetadataCallback> metadata;
     static remove_pointer_t<FLAC__StreamDecoderErrorCallback>    error;
 
-    ref_ptr<io::stream> const file;
-    audio::packet readbuf;
-    std::unique_ptr<audio::pcm::blitter> blitter;
-    std::unique_ptr<FLAC__StreamDecoder> decoder;
-    FLAC__StreamMetadata_StreamInfo info;
-    uint64 cached_pos{};
-    uint32 average_bit_rate;
-    bool const is_ogg;
+    ref_ptr<io::stream> const file_;
+    audio::packet readbuf_;
+    std::unique_ptr<audio::pcm::blitter> blitter_;
+    std::unique_ptr<FLAC__StreamDecoder> decoder_;
+    FLAC__StreamMetadata_StreamInfo info_;
+    uint64 last_pos_{};
+    uint32 avg_bit_rate_;
+    bool const is_ogg_;
 };
 
 FLAC__StreamDecoderReadStatus
@@ -317,7 +316,7 @@ input::read(FLAC__StreamDecoder const*, uint8* const dst,
             std::size_t* const size, void* const opaque)
 {
     try {
-        *size = static_cast<input*>(opaque)->file->try_read(dst, *size);
+        *size = static_cast<input*>(opaque)->file_->try_read(dst, *size);
         return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
     }
     catch (...) {
@@ -329,7 +328,7 @@ FLAC__StreamDecoderSeekStatus
 input::seek(FLAC__StreamDecoder const*, uint64 const pos, void* const opaque)
 {
     try {
-        static_cast<input*>(opaque)->file->seek(pos);
+        static_cast<input*>(opaque)->file_->seek(pos);
         return FLAC__STREAM_DECODER_SEEK_STATUS_OK;
     }
     catch (...) {
@@ -341,7 +340,7 @@ FLAC__StreamDecoderTellStatus
 input::tell(FLAC__StreamDecoder const*, uint64* const pos, void* const opaque)
 {
     try {
-        *pos = static_cast<input*>(opaque)->file->tell();
+        *pos = static_cast<input*>(opaque)->file_->tell();
         return FLAC__STREAM_DECODER_TELL_STATUS_OK;
     }
     catch (...) {
@@ -354,7 +353,7 @@ input::length(FLAC__StreamDecoder const*, uint64* const len,
               void* const opaque)
 {
     try {
-        *len = static_cast<input*>(opaque)->file->size();
+        *len = static_cast<input*>(opaque)->file_->size();
         return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
     }
     catch (...) {
@@ -364,7 +363,7 @@ input::length(FLAC__StreamDecoder const*, uint64* const len,
 
 int input::eof(FLAC__StreamDecoder const*, void* const opaque)
 {
-    return static_cast<input*>(opaque)->file->eof();
+    return static_cast<input*>(opaque)->file_->eof();
 }
 
 FLAC__StreamDecoderWriteStatus
@@ -373,7 +372,7 @@ input::write(FLAC__StreamDecoder const*, FLAC__Frame const* const frame,
 {
     try {
         auto&& self = *static_cast<input*>(opaque);
-        self.blitter->convert(source, frame->header.blocksize, self.readbuf);
+        self.blitter_->convert(source, frame->header.blocksize, self.readbuf_);
         return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
     }
     catch (...) {
@@ -386,7 +385,7 @@ void input::metadata(FLAC__StreamDecoder const*,
                      void* const opaque)
 {
     if (metadata->type == FLAC__METADATA_TYPE_STREAMINFO) {
-        static_cast<input*>(opaque)->info = metadata->data.stream_info;
+        static_cast<input*>(opaque)->info_ = metadata->data.stream_info;
     }
 }
 
@@ -399,21 +398,21 @@ void input::error(FLAC__StreamDecoder const*,
 
 
 input::input(ref_ptr<io::stream> s, audio::open_mode const mode) :
-    file{std::move(s)},
-    is_ogg{flac::is_ogg_stream(*file)}
+    file_(std::move(s)),
+    is_ogg_(flac::is_ogg_stream(*file_))
 {
     if (!(mode & (audio::playback | audio::metadata))) {
         return;
     }
 
-    decoder.reset(FLAC__stream_decoder_new());
-    if (AMP_UNLIKELY(decoder == nullptr)) {
+    decoder_.reset(FLAC__stream_decoder_new());
+    if (AMP_UNLIKELY(decoder_ == nullptr)) {
         raise_bad_alloc();
     }
 
-    auto const init = is_ogg ? &FLAC__stream_decoder_init_ogg_stream
-                             : &FLAC__stream_decoder_init_stream;
-    auto const status = (*init)(decoder.get(),
+    auto const init = is_ogg_ ? &FLAC__stream_decoder_init_ogg_stream
+                              : &FLAC__stream_decoder_init_stream;
+    auto const status = (*init)(decoder_.get(),
                                 input::read,
                                 input::seek,
                                 input::tell,
@@ -426,49 +425,49 @@ input::input(ref_ptr<io::stream> s, audio::open_mode const mode) :
     if (status != FLAC__STREAM_DECODER_INIT_STATUS_OK) {
         flac::raise(status);
     }
-    if (!FLAC__stream_decoder_process_until_end_of_metadata(decoder.get())) {
-        flac::raise(FLAC__stream_decoder_get_state(decoder.get()));
+    if (!FLAC__stream_decoder_process_until_end_of_metadata(decoder_.get())) {
+        flac::raise(FLAC__stream_decoder_get_state(decoder_.get()));
     }
 
-    average_bit_rate = static_cast<uint32>(muldiv(file->size() - file->tell(),
-                                                  info.sample_rate * 8,
-                                                  info.total_samples));
+    avg_bit_rate_ = static_cast<uint32>(muldiv(file_->size() - file_->tell(),
+                                               info_.sample_rate * 8,
+                                               info_.total_samples));
 
     // Avoid creating a PCM blitter if we're just reading metadata.
     if (mode & audio::playback) {
         audio::pcm::spec spec;
         spec.bytes_per_sample = 4;
-        spec.bits_per_sample = info.bits_per_sample;
-        spec.channels = info.channels;
+        spec.bits_per_sample = info_.bits_per_sample;
+        spec.channels = info_.channels;
         spec.flags = audio::pcm::signed_int
                    | audio::pcm::host_endian
                    | audio::pcm::non_interleaved;
 
-        blitter = audio::pcm::blitter::create(spec);
-        FLAC__stream_decoder_get_decode_position(decoder.get(), &cached_pos);
+        blitter_ = audio::pcm::blitter::create(spec);
+        FLAC__stream_decoder_get_decode_position(decoder_.get(), &last_pos_);
     }
 }
 
 void input::read(audio::packet& pkt)
 {
-    if (AMP_LIKELY(readbuf.empty())) {
-        auto const ok = FLAC__stream_decoder_process_single(decoder.get());
+    if (AMP_LIKELY(readbuf_.empty())) {
+        auto const ok = FLAC__stream_decoder_process_single(decoder_.get());
         if (AMP_UNLIKELY(!ok)) {
-            flac::raise(FLAC__stream_decoder_get_state(decoder.get()));
+            flac::raise(FLAC__stream_decoder_get_state(decoder_.get()));
         }
     }
-    readbuf.swap(pkt);
-    readbuf.clear();
+    readbuf_.swap(pkt);
+    readbuf_.clear();
 
-    auto bit_rate = average_bit_rate;
+    auto bit_rate = avg_bit_rate_;
     if (pkt.frames() != 0) {
         uint64 pos;
-        if (FLAC__stream_decoder_get_decode_position(decoder.get(), &pos)) {
-            if (pos > cached_pos) {
-                bit_rate = static_cast<uint32>(muldiv(pos - cached_pos,
-                                                      info.sample_rate * 8,
+        if (FLAC__stream_decoder_get_decode_position(decoder_.get(), &pos)) {
+            if (pos > last_pos_) {
+                bit_rate = static_cast<uint32>(muldiv(pos - last_pos_,
+                                                      info_.sample_rate * 8,
                                                       pkt.frames()));
-                cached_pos = pos;
+                last_pos_ = pos;
             }
         }
     }
@@ -477,22 +476,22 @@ void input::read(audio::packet& pkt)
 
 void input::seek(uint64 const pts)
 {
-    readbuf.clear();
-    if (!FLAC__stream_decoder_seek_absolute(decoder.get(), pts)) {
-        readbuf.clear();
-        if (!FLAC__stream_decoder_flush(decoder.get())) {
-            flac::raise(FLAC__stream_decoder_get_state(decoder.get()));
+    readbuf_.clear();
+    if (!FLAC__stream_decoder_seek_absolute(decoder_.get(), pts)) {
+        readbuf_.clear();
+        if (!FLAC__stream_decoder_flush(decoder_.get())) {
+            flac::raise(FLAC__stream_decoder_get_state(decoder_.get()));
         }
     }
-    FLAC__stream_decoder_get_decode_position(decoder.get(), &cached_pos);
+    FLAC__stream_decoder_get_decode_position(decoder_.get(), &last_pos_);
 }
 
 auto input::get_format() const noexcept
 {
     audio::format ret;
-    ret.sample_rate    = info.sample_rate;
-    ret.channels       = info.channels;
-    ret.channel_layout = audio::xiph_channel_layout(info.channels);
+    ret.sample_rate = info_.sample_rate;
+    ret.channels = info_.channels;
+    ret.channel_layout = audio::xiph_channel_layout(info_.channels);
     return ret;
 }
 
@@ -500,10 +499,10 @@ auto input::get_info(uint32 const /* chapter_number */)
 {
     audio::stream_info out{get_format()};
     out.codec_id         = audio::codec::flac;
-    out.frames           = info.total_samples;
-    out.bits_per_sample  = info.bits_per_sample;
-    out.average_bit_rate = average_bit_rate;
-    if (is_ogg) {
+    out.frames           = info_.total_samples;
+    out.bits_per_sample  = info_.bits_per_sample;
+    out.average_bit_rate = avg_bit_rate_;
+    if (is_ogg_) {
         out.props.emplace(tags::container, "Ogg FLAC");
     }
 
@@ -514,7 +513,7 @@ auto input::get_info(uint32 const /* chapter_number */)
         };
     };
 
-    for (auto&& block : flac::metadata_chain{*file, is_ogg}) {
+    for (auto&& block : flac::metadata_chain{*file_, is_ogg_}) {
         if (block.type != FLAC__METADATA_TYPE_VORBIS_COMMENT) {
             continue;
         }
@@ -538,10 +537,10 @@ auto input::get_info(uint32 const /* chapter_number */)
     return out;
 }
 
-auto input::get_image(media::image_type const type)
+auto input::get_image(media::image::type const type)
 {
     media::image image;
-    for (auto&& block : flac::metadata_chain{*file, is_ogg}) {
+    for (auto&& block : flac::metadata_chain{*file_, is_ogg_}) {
         if (block.type != FLAC__METADATA_TYPE_PICTURE) {
             continue;
         }

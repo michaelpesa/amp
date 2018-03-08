@@ -23,7 +23,7 @@ add_executable(amp
     core/file_stream.cpp
     core/filesystem.cpp
     core/md5.cpp
-    core/muldiv.cpp
+    core/numeric.cpp
     core/rbtree.cpp
     core/registry.cpp
     core/u8string.cpp
