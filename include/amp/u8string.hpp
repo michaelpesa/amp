@@ -90,17 +90,17 @@ struct u8string_rep
     AMP_INLINE bool is_interned() const noexcept
     { return !!(ref_count.load(std::memory_order_relaxed) & interned_bit); }
 
-    AMP_EXPORT
-    void release() const noexcept;
+    AMP_EXPORT void release() const noexcept;
 
-    AMP_EXPORT
-    static u8string_rep* from_utf8_unchecked(char const*, std::size_t);
+    AMP_EXPORT static char* from_utf8_unchecked(char const*, std::size_t);
+    AMP_EXPORT static char* from_encoding(void const*, std::size_t, uint32);
+    AMP_EXPORT static char* from_text_file(io::stream&);
 
-    AMP_EXPORT
-    static u8string_rep* from_encoding(void const*, std::size_t, uint32);
+    AMP_INLINE static auto from_data(char* const p) noexcept
+    { return reinterpret_cast<u8string_rep*>(p) - 1; }
 
-    AMP_EXPORT
-    static u8string_rep* from_text_file(io::stream&);
+    AMP_INLINE static auto from_data(char const* const p) noexcept
+    { return reinterpret_cast<u8string_rep const*>(p) - 1; }
 };
 
 
@@ -206,11 +206,11 @@ public:
     static constexpr auto npos = static_cast<size_type>(-1);
 
     constexpr u8string_buffer() noexcept :
-        rep_{nullptr}
+        str_{nullptr}
     {}
 
     u8string_buffer(u8string_buffer&& x) noexcept :
-        rep_{std::exchange(x.rep_, nullptr)}
+        str_{std::exchange(x.str_, nullptr)}
     {}
 
     u8string_buffer& operator=(u8string_buffer&& x) & noexcept
@@ -242,8 +242,8 @@ public:
 
     ~u8string_buffer()
     {
-        if (rep_) {
-            rep_->release();
+        if (str_) {
+            rep_()->release();
         }
     }
 
@@ -253,7 +253,7 @@ public:
     void swap(u8string_buffer& x) noexcept
     {
         using std::swap;
-        swap(rep_, x.rep_);
+        swap(str_, x.str_);
     }
 
     iterator erase(const_iterator first, const_iterator const last) noexcept
@@ -266,9 +266,10 @@ public:
             clear();
         }
         else {
+            auto const rep = rep_();
             std::copy(last, cend(), const_cast<iterator>(first));
-            rep_->size -= static_cast<size_type>(last - first);
-            rep_->data()[rep_->size] = '\0';
+            rep->size -= static_cast<size_type>(last - first);
+            rep->data()[rep->size] = '\0';
         }
         return const_cast<iterator>(first);
     }
@@ -363,10 +364,10 @@ public:
     { return const_reverse_iterator(cbegin()); }
 
     AMP_INLINE pointer data() noexcept
-    { return rep_ ? rep_->data() : nullptr; }
+    { return str_; }
 
     AMP_INLINE const_pointer data() const noexcept
-    { return rep_ ? rep_->data() : nullptr; }
+    { return str_; }
 
     AMP_INLINE const_pointer c_str() const noexcept
     { return data(); }
@@ -375,19 +376,19 @@ public:
     { return static_cast<size_type>(-1); }
 
     AMP_INLINE size_type size() const noexcept
-    { return rep_ ? rep_->size : 0; }
+    { return str_ ? rep_()->size : 0; }
 
     AMP_INLINE size_type length() const noexcept
     { return size(); }
 
     AMP_INLINE bool empty() const noexcept
-    { return (rep_ == nullptr); }
+    { return (str_ == nullptr); }
 
     void clear() noexcept
     {
-        if (rep_) {
-            rep_->release();
-            rep_ = nullptr;
+        if (str_) {
+            rep_()->release();
+            str_ = nullptr;
         }
     }
 
@@ -438,9 +439,9 @@ public:
             clear();
         }
         else {
-            AMP_ASSERT(rep_ != nullptr);
-            rep_->size -= n;
-            rep_->data()[rep_->size] = '\0';
+            auto const rep = rep_();
+            rep->size -= n;
+            rep->data()[rep->size] = '\0';
         }
     }
 
@@ -448,8 +449,9 @@ public:
     {
         resize(size() + 1);
 
-        AMP_ASSERT(rep_ != nullptr);
-        rep_->data()[size() - 1] = c;
+        AMP_ASSERT(str_ != nullptr);
+        auto const rep = rep_();
+        rep->data()[rep->size - 1] = c;
         return *this;
     }
 
@@ -483,14 +485,17 @@ private:
 
     struct consume_arg_t {};
 
-    explicit u8string_buffer(u8string_rep* const p, consume_arg_t) noexcept :
-        rep_{p}
+    explicit u8string_buffer(char* const p, consume_arg_t) noexcept :
+        str_{p}
     {}
 
-    static u8string_buffer consume(u8string_rep* const p) noexcept
+    static u8string_buffer consume(char* const p) noexcept
     { return u8string_buffer{p, consume_arg_t()}; }
 
-    u8string_rep* rep_;
+    AMP_INLINE u8string_rep* rep_() const noexcept
+    { return reinterpret_cast<u8string_rep*>(str_) - 1; }
+
+    char* str_;
 };
 
 
@@ -557,7 +562,7 @@ public:
     static constexpr auto npos = static_cast<size_type>(-1);
 
     constexpr u8string() noexcept :
-        rep_{nullptr}
+        str_{nullptr}
     {}
 
     u8string(const_pointer const s, size_type const n) :
@@ -577,15 +582,15 @@ public:
     {}
 
     u8string(u8string const& x) noexcept :
-        rep_{x.rep_}
+        str_{x.str_}
     {
-        if (rep_) {
-            rep_->add_ref();
+        if (str_) {
+            rep_()->add_ref();
         }
     }
 
     u8string(u8string&& x) noexcept :
-        rep_{std::exchange(x.rep_, nullptr)}
+        str_{std::exchange(x.str_, nullptr)}
     {}
 
     u8string& operator=(u8string const& x) & noexcept
@@ -602,15 +607,15 @@ public:
 
     ~u8string()
     {
-        if (rep_) {
-            rep_->release();
+        if (str_) {
+            rep_()->release();
         }
     }
 
     void swap(u8string& x) noexcept
     {
         using std::swap;
-        swap(rep_, x.rep_);
+        swap(str_, x.str_);
     }
 
     value_type const& operator[](size_type const pos) const noexcept
@@ -656,7 +661,7 @@ public:
     { return const_reverse_iterator(begin()); }
 
     AMP_INLINE const_pointer data() const noexcept
-    { return rep_ ? rep_->data() : nullptr; }
+    { return str_; }
 
     AMP_INLINE const_pointer c_str() const noexcept
     { return data(); }
@@ -665,22 +670,22 @@ public:
     { return static_cast<size_type>(-1); }
 
     AMP_INLINE size_type size() const noexcept
-    { return rep_ ? rep_->size : 0; }
+    { return str_ ? rep_()->size : 0; }
 
     AMP_INLINE size_type length() const noexcept
     { return size(); }
 
     AMP_INLINE bool empty() const noexcept
-    { return (rep_ == nullptr); }
+    { return (str_ == nullptr); }
 
     AMP_INLINE explicit operator bool() const noexcept
-    { return (rep_ != nullptr); }
+    { return (str_ != nullptr); }
 
     void clear() noexcept
     {
-        if (rep_) {
-            rep_->release();
-            rep_ = nullptr;
+        if (str_) {
+            rep_()->release();
+            str_ = nullptr;
         }
     }
 
@@ -695,9 +700,9 @@ public:
 
     u8string_buffer detach() &&
     {
-        if (rep_ && (rep_->ref_count.load(std::memory_order_relaxed) == 1)) {
+        if (str_ && (rep_()->ref_count.load(std::memory_order_relaxed) == 1)) {
             return u8string_buffer::consume(
-                const_cast<u8string_rep*>(std::exchange(rep_, nullptr)));
+                const_cast<char*>(std::exchange(str_, nullptr)));
         }
         return const_cast<u8string const&>(*this).detach();
     }
@@ -716,7 +721,7 @@ public:
     { return compare(s, s ? std::strlen(s) : 0); }
 
     int compare(u8string const& x) const noexcept
-    { return (rep_ == x.rep_) ? 0 : compare(x.data(), x.size()); }
+    { return (str_ == x.str_) ? 0 : compare(x.data(), x.size()); }
 
     int compare(std::string_view const x) const noexcept
     { return compare(x.data(), x.size()); }
@@ -812,10 +817,10 @@ public:
     { return static_cast<u8string&&>(*this).detach(); }
 
     uint32 hash_code() const noexcept
-    { return rep_ ? rep_->hash_code : 0; }
+    { return str_ ? rep_()->hash_code : 0; }
 
     uint32 use_count() const noexcept
-    { return rep_ ? rep_->use_count() : 0; }
+    { return str_ ? rep_()->use_count() : 0; }
 
     AMP_EXPORT
     static u8string intern(char const*, size_type);
@@ -829,14 +834,17 @@ private:
 
     struct consume_arg_t {};
 
-    explicit u8string(u8string_rep const* const p, consume_arg_t) noexcept :
-        rep_{p}
+    explicit u8string(char const* const p, consume_arg_t) noexcept :
+        str_{p}
     {}
 
-    static u8string consume(u8string_rep const* const p) noexcept
+    static u8string consume(char const* const p) noexcept
     { return u8string{p, consume_arg_t()}; }
 
-    u8string_rep const* rep_;
+    AMP_INLINE u8string_rep const* rep_() const noexcept
+    { return reinterpret_cast<u8string_rep const*>(str_) - 1; }
+
+    char const* str_;
 };
 
 

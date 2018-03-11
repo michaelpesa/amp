@@ -22,25 +22,18 @@ using namespace ::amp;
 using namespace ::std::literals;
 
 
-inline u8string_rep* rep_ptr(u8string_buffer const& s) noexcept
-{ return *reinterpret_cast<u8string_rep* const*>(&s); }
-
-inline u8string_rep const* rep_ptr(u8string const& s) noexcept
-{ return *reinterpret_cast<u8string_rep const* const*>(&s); }
-
-
 TEST(u8string_test, detach_unique)
 {
     auto s1 = u8string{"string"};
     ASSERT_EQ(s1.use_count(), 1);
 
     auto s2 = s1.detach();
-    ASSERT_NE(rep_ptr(s1), rep_ptr(s2));
+    ASSERT_NE(s1.data(), s2.data());
 
-    auto const old_ptr = rep_ptr(s1);
+    auto const old_ptr = s1.data();
     auto s3 = std::move(s1).detach();
-    ASSERT_EQ(rep_ptr(s1), nullptr);
-    ASSERT_EQ(rep_ptr(s3), old_ptr);
+    ASSERT_EQ(s1.data(), nullptr);
+    ASSERT_EQ(s3.data(), old_ptr);
 }
 
 TEST(u8string_test, detach_shared)
@@ -50,12 +43,12 @@ TEST(u8string_test, detach_shared)
 
     auto s2 = s1;
     ASSERT_EQ(s1.use_count(), 2);
-    ASSERT_EQ(rep_ptr(s1), rep_ptr(s2));
+    ASSERT_EQ(s1.data(), s2.data());
 
     auto s3 = std::move(s1).detach();
     ASSERT_EQ(s1.use_count(), 2);
-    ASSERT_EQ(rep_ptr(s1), rep_ptr(s2));
-    ASSERT_NE(rep_ptr(s1), rep_ptr(s3));
+    ASSERT_EQ(s1.data(), s2.data());
+    ASSERT_NE(s1.data(), s3.data());
     ASSERT_TRUE(std::equal(s1.begin(), s1.end(), s3.begin(), s3.end()));
 }
 
@@ -69,7 +62,7 @@ TEST(u8string_test, detach_interned)
 
     auto s2 = std::move(s1).detach();
     ASSERT_EQ(s1.use_count(), 1);
-    ASSERT_NE(rep_ptr(s1), rep_ptr(s2));
+    ASSERT_NE(s1.data(), s2.data());
     ASSERT_TRUE(std::equal(s1.begin(), s1.end(), s2.begin(), s2.end()));
 }
 
@@ -95,38 +88,38 @@ TEST(u8string_test, interned_reference_counting)
 
     auto s2 = s1;
     ASSERT_EQ(s1, s2);
-    ASSERT_EQ(rep_ptr(s1), rep_ptr(s2));
+    ASSERT_EQ(s1.data(), s2.data());
     ASSERT_EQ(s1.use_count(), 2);
 
     s1 = "another";
     s1.intern();
     ASSERT_NE(s1, s2);
-    ASSERT_NE(rep_ptr(s1), rep_ptr(s2));
+    ASSERT_NE(s1.data(), s2.data());
     ASSERT_EQ(s1.use_count(), 1);
     ASSERT_EQ(s2.use_count(), 1);
 
     s2 = "another";
     ASSERT_EQ(s1, s2);
-    ASSERT_NE(rep_ptr(s1), rep_ptr(s2));
+    ASSERT_NE(s1.data(), s2.data());
     ASSERT_EQ(s1.use_count(), 1);
     ASSERT_EQ(s2.use_count(), 1);
 
     s2.intern();
     ASSERT_EQ(s1, s2);
-    ASSERT_EQ(rep_ptr(s1), rep_ptr(s2));
+    ASSERT_EQ(s1.data(), s2.data());
     ASSERT_EQ(s1.use_count(), 2);
 
     {
         auto s3 = u8string::intern("another");
         ASSERT_EQ(s1, s2);
         ASSERT_EQ(s1, s3);
-        ASSERT_EQ(rep_ptr(s1), rep_ptr(s2));
-        ASSERT_EQ(rep_ptr(s1), rep_ptr(s3));
+        ASSERT_EQ(s1.data(), s2.data());
+        ASSERT_EQ(s1.data(), s3.data());
         ASSERT_EQ(s1.use_count(), 3);
     }
 
     ASSERT_EQ(s1, s2);
-    ASSERT_EQ(rep_ptr(s1), rep_ptr(s2));
+    ASSERT_EQ(s1.data(), s2.data());
     ASSERT_EQ(s1.use_count(), 2);
 }
 
@@ -241,7 +234,7 @@ TEST(u8string_test, erase_iterator_range)
     s.erase(s.cbegin(), s.cend());
     ASSERT_EQ(s, ""sv);
     ASSERT_EQ(s.size(), 0);
-    ASSERT_EQ(rep_ptr(s), nullptr);
+    ASSERT_EQ(s.data(), nullptr);
 }
 
 TEST(u8string_test, appendf)

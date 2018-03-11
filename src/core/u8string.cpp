@@ -93,8 +93,8 @@ void u8string_rep::release() const noexcept
     }
 }
 
-u8string_rep* u8string_rep::from_utf8_unchecked(char const* const str,
-                                                std::size_t const len)
+char* u8string_rep::from_utf8_unchecked(char const* const str,
+                                        std::size_t const len)
 {
     if (AMP_UNLIKELY(len == 0)) {
         return nullptr;
@@ -105,12 +105,11 @@ u8string_rep* u8string_rep::from_utf8_unchecked(char const* const str,
     auto const rep = allocate_u8string_rep(len);
     std::copy_n(str, len, rep->data());
     rep->hash_code = crc32c::compute(rep->data(), rep->size);
-    return rep;
+    return rep->data();
 }
 
-u8string_rep* u8string_rep::from_encoding(void const* const buf,
-                                          std::size_t       len,
-                                          uint32            enc)
+char* u8string_rep::from_encoding(void const* const buf, std::size_t len,
+                                  uint32 enc)
 {
     auto src = static_cast<char const*>(buf);
     auto const lossy = !!(enc & (uint32{1} << 31));
@@ -158,10 +157,10 @@ u8string_rep* u8string_rep::from_encoding(void const* const buf,
 
     UTF8_CONV_SWITCH(src, len, lossy, rep->data());
     rep->hash_code = crc32c::compute(rep->data(), rep->size);
-    return rep;
+    return rep->data();
 }
 
-u8string_rep* u8string_rep::from_text_file(io::stream& file)
+char* u8string_rep::from_text_file(io::stream& file)
 {
     auto len = numeric_cast<std::size_t>(file.size());
     if (len >= 3) {
@@ -176,6 +175,10 @@ u8string_rep* u8string_rep::from_text_file(io::stream& file)
         }
     }
 
+    if (AMP_UNLIKELY(len == 0)) {
+        return nullptr;
+    }
+
     auto const rep = allocate_u8string_rep(len);
     file.read(rep->data(), len);
 
@@ -185,7 +188,7 @@ u8string_rep* u8string_rep::from_text_file(io::stream& file)
     }
 
     rep->hash_code = crc32c::compute(rep->data(), len);
-    return rep;
+    return rep->data();
 }
 
 
@@ -200,49 +203,56 @@ u8string u8string::substr(size_type const start, size_type n) const
     if (n == 0) {
         return u8string{};
     }
-    AMP_ASSERT(rep_ != nullptr);
+    AMP_ASSERT(str_ != nullptr);
+    auto const rep = rep_();
 
-    if (unicode::is_utf8_continuation_byte(rep_->data()[start]) ||
-        unicode::is_utf8_continuation_byte(rep_->data()[start + n])) {
+    if (unicode::is_utf8_continuation_byte(rep->data()[start]) ||
+        unicode::is_utf8_continuation_byte(rep->data()[start + n])) {
         raise(errc::invalid_unicode,
               "substring range [%zu, %zu) crosses a UTF-8 byte sequence",
               start, start + n);
     }
-    return u8string::from_utf8_unchecked(rep_->data() + start, n);
+    return u8string::from_utf8_unchecked(rep->data() + start, n);
 }
 
 u8string_buffer u8string::detach() const&
 {
-    if (!rep_) {
+    if (!str_) {
         return {};
     }
 
-    auto const tmp = allocate_u8string_rep(rep_->size);
-    std::copy_n(rep_->data(), rep_->size, tmp->data());
-    tmp->hash_code = rep_->hash_code;
-    return u8string_buffer::consume(tmp);
+    auto const rep = rep_();
+    auto const tmp = allocate_u8string_rep(rep->size);
+    std::copy_n(rep->data(), rep->size, tmp->data());
+    tmp->hash_code = rep->hash_code;
+    return u8string_buffer::consume(tmp->data());
 }
 
 void u8string::intern()
 {
-    std::lock_guard<std::mutex> const lk{intern_hash_mtx};
-    if (!rep_ || rep_->is_interned()) {
+    if (!str_) {
         return;
     }
 
-    auto const len = rep_->size;
-    auto&& head = intern_hash[rep_->hash_code % intern_hash_size];
+    std::lock_guard<std::mutex> const lk{intern_hash_mtx};
+    auto const rep = rep_();
+    if (rep->is_interned()) {
+        return;
+    }
+
+    auto const len = rep->size;
+    auto&& head = intern_hash[rep->hash_code % intern_hash_size];
     for (auto x = head; x != nullptr; x = x->intern_next) {
-        if (x->size == len && std::memcmp(rep_->data(), x->data(), len) == 0) {
-            rep_->release();
-            rep_ = x;
-            rep_->add_ref();
+        if (x->size == len && std::memcmp(rep->data(), x->data(), len) == 0) {
+            rep->release();
+            x->add_ref();
+            str_ = x->data();
             return;
         }
     }
 
-    rep_->ref_count.fetch_or(rep_->interned_bit, std::memory_order_relaxed);
-    rep_->intern_next = std::exchange(head, rep_);
+    rep->ref_count.fetch_or(rep->interned_bit, std::memory_order_relaxed);
+    rep->intern_next = std::exchange(head, rep);
 }
 
 u8string u8string::intern(char const* const s, std::size_t const len)
@@ -260,7 +270,7 @@ u8string u8string::intern(char const* const s, std::size_t const len)
     for (auto x = head; x != nullptr; x = x->intern_next) {
         if (x->size == len && std::memcmp(s, x->data(), len) == 0) {
             x->add_ref();
-            return u8string::consume(x);
+            return u8string::consume(x->data());
         }
     }
 
@@ -274,12 +284,12 @@ u8string u8string::intern(char const* const s, std::size_t const len)
     std::copy_n(s, len, rep->data());
     rep->hash_code = hash_code;
     rep->intern_next = std::exchange(head, rep);
-    return u8string::consume(rep);
+    return u8string::consume(rep->data());
 }
 
 
 u8string_buffer::u8string_buffer(size_type const n, uninitialized_t) :
-    rep_{n ? allocate_u8string_rep(n) : nullptr}
+    str_{n ? allocate_u8string_rep(n)->data() : nullptr}
 {
 }
 
@@ -294,40 +304,43 @@ void u8string_buffer::resize(size_type const new_size)
         return;
     }
 
-    auto const tmp = std::realloc(rep_, sizeof(*rep_) + new_size + 1);
+    auto rep = str_ ? rep_() : static_cast<u8string_rep*>(nullptr);
+    auto const tmp = std::realloc(rep, sizeof(*rep) + new_size + 1);
     if (AMP_UNLIKELY(tmp == nullptr)) {
         raise_bad_alloc();
     }
-    rep_ = static_cast<u8string_rep*>(tmp);
+    rep = static_cast<u8string_rep*>(tmp);
+    str_ = rep->data();
 
-    ::new(rep_->data()) char[new_size + 1];
-    rep_->data()[new_size] = '\0';
-    rep_->size = new_size;
+    ::new(rep->data()) char[new_size + 1];
+    rep->data()[new_size] = '\0';
+    rep->size = new_size;
 
     if (new_size > old_size) {
-        std::fill_n(rep_->data() + old_size, new_size - old_size, '\0');
+        std::fill_n(rep->data() + old_size, new_size - old_size, '\0');
     }
 }
 
 u8string u8string_buffer::promote()
 {
-    if (rep_ != nullptr) {
-        AMP_ASSERT(rep_->use_count() == 1);
+    if (str_ != nullptr) {
+        auto const rep = rep_();
+        AMP_ASSERT(rep->use_count() == 1);
 
-        if (rep_->size == 0) {
-            rep_->release();
-            rep_ = nullptr;
+        if (rep->size == 0) {
+            rep->release();
+            str_ = nullptr;
         }
         else if (is_valid_utf8(cbegin(), cend())) {
-            rep_->hash_code = crc32c::compute(rep_->data(), rep_->size);
+            rep->hash_code = crc32c::compute(rep->data(), rep->size);
         }
         else {
-            rep_->release();
-            rep_ = nullptr;
+            rep->release();
+            str_ = nullptr;
             raise(errc::invalid_unicode);
         }
     }
-    return u8string::consume(std::exchange(rep_, nullptr));
+    return u8string::consume(std::exchange(str_, nullptr));
 }
 
 u8string_buffer& u8string_buffer::appendf(char const* const format, ...)

@@ -135,7 +135,6 @@ namespace net {
 namespace aux {
 
 template<typename T>
-AMP_READNONE
 AMP_INLINE constexpr auto byte_swap_(T const x) noexcept ->
     enable_if_t<(sizeof(T) == 1), T>
 {
@@ -143,7 +142,6 @@ AMP_INLINE constexpr auto byte_swap_(T const x) noexcept ->
 }
 
 template<typename T>
-AMP_READNONE
 AMP_INLINE constexpr auto byte_swap_(T const x) noexcept ->
     enable_if_t<(sizeof(T) == 2), T>
 {
@@ -156,7 +154,6 @@ AMP_INLINE constexpr auto byte_swap_(T const x) noexcept ->
 }
 
 template<typename T>
-AMP_READNONE
 AMP_INLINE constexpr auto byte_swap_(T const x) noexcept ->
     enable_if_t<(sizeof(T) == 4), T>
 {
@@ -171,7 +168,6 @@ AMP_INLINE constexpr auto byte_swap_(T const x) noexcept ->
 }
 
 template<typename T>
-AMP_READNONE
 AMP_INLINE constexpr auto byte_swap_(T const x) noexcept ->
     enable_if_t<(sizeof(T) == 8), T>
 {
@@ -193,7 +189,6 @@ AMP_INLINE constexpr auto byte_swap_(T const x) noexcept ->
 
 
 template<typename T>
-AMP_READNONE
 AMP_INLINE constexpr auto byte_swap(T const x) noexcept ->
     enable_if_t<is_integral_v<T>, T>
 {
@@ -201,7 +196,6 @@ AMP_INLINE constexpr auto byte_swap(T const x) noexcept ->
 }
 
 template<typename T>
-AMP_READNONE
 AMP_INLINE constexpr auto byte_swap(T const x) noexcept ->
     enable_if_t<is_enum_v<T>, T>
 {
@@ -209,7 +203,6 @@ AMP_INLINE constexpr auto byte_swap(T const x) noexcept ->
 }
 
 template<typename T>
-AMP_READNONE
 AMP_INLINE auto byte_swap(T t) noexcept ->
     enable_if_t<is_floating_point_v<T>, T>
 {
@@ -230,7 +223,6 @@ template<endian E>
 struct to_host_
 {
     template<typename T>
-    AMP_READONLY
     AMP_INLINE constexpr T operator()(T const& t) const noexcept
     { return byte_swap(t); }
 };
@@ -239,7 +231,6 @@ template<>
 struct to_host_<endian::host>
 {
     template<typename T>
-    AMP_READONLY
     AMP_INLINE constexpr T operator()(T const& t) const noexcept
     { return t; }
 };
