@@ -8,7 +8,6 @@
 #include <amp/bitops.hpp>
 #include <amp/numeric.hpp>
 #include <amp/stddef.hpp>
-#include <amp/type_traits.hpp>
 #include <amp/utility.hpp>
 
 #include <limits>

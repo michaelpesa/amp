@@ -16,10 +16,10 @@ namespace intrusive {
 namespace aux {
 namespace {
 
-AMP_INLINE bool is_red(rbtree_node const* const x) noexcept
+inline bool is_red(rbtree_node const* const x) noexcept
 { return x && (color(x) == rbtree_color::red); }
 
-AMP_INLINE bool is_black(rbtree_node const* const x) noexcept
+inline bool is_black(rbtree_node const* const x) noexcept
 { return !x || (color(x) == rbtree_color::black); }
 
 
@@ -142,42 +142,33 @@ void insert_and_rebalance(rbtree_node* x, rbtree_node* const p,
         }
         set_color(xpp, rbtree_color::red);
 
-        if (parent(x) == xpp->left) {
-            auto const y = xpp->right;
-            if (is_red(y)) {
-                set_color(parent(x), rbtree_color::black);
-                set_color(y, rbtree_color::black);
-                x = xpp;
-            }
-            else {
-                if (x == parent(x)->right) {
-                    x = parent(x);
-                    rotate_left(x, head);
-                }
+        auto const xp_is_left_child = (xp == xpp->left);
+        auto const y = xp_is_left_child ? xpp->right : xpp->left;
 
-                set_color(parent(x), rbtree_color::black);
-                rotate_right(xpp, head);
-            }
+        if (is_red(y)) {
+            set_color(xp, rbtree_color::black);
+            set_color(y, rbtree_color::black);
+            x = xpp;
         }
         else {
-            auto const y = xpp->left;
-            if (is_red(y)) {
-                set_color(parent(x), rbtree_color::black);
-                set_color(y, rbtree_color::black);
-                x = xpp;
+            if (xp_is_left_child) {
+                if (x == xp->right) {
+                    rotate_left(xp, head);
+                    xp = x;
+                }
+                rotate_right(xpp, head);
             }
             else {
-                if (x == parent(x)->left) {
-                    x = parent(x);
-                    rotate_right(x, head);
+                if (x == xp->left) {
+                    rotate_right(xp, head);
+                    xp = x;
                 }
-
-                set_color(parent(x), rbtree_color::black);
                 rotate_left(xpp, head);
             }
+            set_color(xp, rbtree_color::black);
+            break;
         }
     }
-
     set_color(parent(&head), rbtree_color::black);
 }
 

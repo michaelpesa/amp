@@ -36,95 +36,84 @@ private:
     };
 
 public:
-    explicit expression(expression::type const      t,
-                        u8string                    s,
+    explicit expression(expression::type const t, u8string s,
                         std::unique_ptr<expression> x = nullptr,
                         std::unique_ptr<expression> y = nullptr) noexcept :
-        str(std::move(s)),
-        lhs(std::move(x)),
-        rhs(std::move(y)),
-        type(t)
+        lhs_(std::move(x)),
+        rhs_(std::move(y)),
+        str_(std::move(s)),
+        type_(t)
     {}
 
     static auto meta(u8string key)
     {
-        return std::make_unique<expression>(expression::type::meta,
-                                            std::move(key));
+        return std::make_unique<expression>(type::meta, std::move(key));
     }
 
     static auto meta_exact(u8string key)
     {
-        return std::make_unique<expression>(expression::type::meta_exact,
-                                            std::move(key));
+        return std::make_unique<expression>(type::meta_exact, std::move(key));
     }
 
     static auto literal(u8string text)
     {
-        return std::make_unique<expression>(expression::type::literal,
-                                            std::move(text));
+        return std::make_unique<expression>(type::literal, std::move(text));
     }
 
-    static auto if_then(u8string key,
-                        std::unique_ptr<expression> then)
+    static auto if_then(u8string key, std::unique_ptr<expression> then)
     {
-        return std::make_unique<expression>(expression::type::if_then,
-                                            std::move(key),
+        return std::make_unique<expression>(type::if_then, std::move(key),
                                             std::move(then));
     }
 
-    static auto if_exists(u8string key,
-                          std::unique_ptr<expression> lhs,
+    static auto if_exists(u8string key, std::unique_ptr<expression> lhs,
                           std::unique_ptr<expression> rhs)
     {
-        return std::make_unique<expression>(expression::type::if_exists,
-                                            std::move(key),
-                                            std::move(lhs),
-                                            std::move(rhs));
+        return std::make_unique<expression>(type::if_exists, std::move(key),
+                                            std::move(lhs), std::move(rhs));
     }
 
     static auto concat(std::unique_ptr<expression> lhs,
                        std::unique_ptr<expression> rhs)
     {
-        return std::make_unique<expression>(expression::type::concat,
-                                            u8string{},
-                                            std::move(lhs),
-                                            std::move(rhs));
+        return std::make_unique<expression>(type::concat, u8string{},
+                                            std::move(lhs), std::move(rhs));
     }
 
     void eval(media::track const& track, u8string_buffer& out) const
     {
-        switch (type) {
-        case expression::type::meta_exact:
-        case expression::type::meta:
-            out += tags::find(track, str, static_cast<tags::scope>(type));
+        switch (type_) {
+        case type::meta_exact:
+        case type::meta:
+            out += tags::find(track, str_, static_cast<tags::scope>(type_));
             break;
-        case expression::type::literal:
-            out += str;
+        case type::literal:
+            out += str_;
             break;
-        case expression::type::if_then:
-            if (tags::contains(track, str)) {
-                lhs->eval(track, out);
+        case type::if_then:
+            if (tags::contains(track, str_)) {
+                lhs_->eval(track, out);
             }
             break;
-        case expression::type::if_exists:
-            if (auto found = tags::find(track, str)) {
-                if (lhs) { lhs->eval(track, out); }
+        case type::if_exists:
+            if (auto found = tags::find(track, str_)) {
+                if (lhs_) { lhs_->eval(track, out); }
                 out += found;
-                if (rhs) { rhs->eval(track, out); }
+                if (rhs_) { rhs_->eval(track, out); }
             }
             break;
-        case expression::type::concat:
-            lhs->eval(track, out);
-            rhs->eval(track, out);
+        case type::concat:
+            lhs_->eval(track, out);
+            rhs_->eval(track, out);
             break;
         }
     }
 
 private:
-    u8string                    str;
-    std::unique_ptr<expression> lhs;
-    std::unique_ptr<expression> rhs;
-    expression::type            type;
+    std::unique_ptr<expression> lhs_;
+    std::unique_ptr<expression> rhs_;
+    u8string str_;
+    expression::type type_;
 };
 
 
@@ -182,13 +171,13 @@ auto parse_key_string(char const*& src, char const delim)
     return buf.promote();
 }
 
-std::unique_ptr<expression> compile_expression(char const*& src,
-                                               char const delim)
+std::unique_ptr<expression> parse_expression(char const*& src,
+                                             char const delim)
 {
     auto parse_function = [&](u8string const& fn) {
         if (fn == "if") {
             auto key  = parse_key_string(src, ',');
-            auto then = compile_expression(src, ')');
+            auto then = parse_expression(src, ')');
             if (!then) {
                 raise(errc::invalid_argument,
                       "'if' statement requires two parameters");
@@ -213,9 +202,9 @@ std::unique_ptr<expression> compile_expression(char const*& src,
             case '[':
                 {
                     ++src;
-                    auto lhs = compile_expression(src, '%');
+                    auto lhs = parse_expression(src, '%');
                     auto key = parse_key_string(src, '%');
-                    auto rhs = compile_expression(src, ']');
+                    auto rhs = parse_expression(src, ']');
                     return expression::if_exists(std::move(key),
                                                  std::move(lhs),
                                                  std::move(rhs));
@@ -266,7 +255,7 @@ u8string title_format::operator()(media::track const& track) const
 void title_format::compile(u8string const& format)
 {
     auto src = format.c_str();
-    auto tmp = compile_expression(src, '\0');
+    auto tmp = parse_expression(src, '\0');
     destroy_state_(std::exchange(state_, tmp.release()));
 }
 

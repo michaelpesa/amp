@@ -6,9 +6,9 @@
 
 
 #include <amp/io/reader.hpp>
-#include <amp/memory.hpp>
 #include <amp/stddef.hpp>
 
+#include <cstring>
 #include <stdexcept>
 
 #include <gtest/gtest.h>
@@ -61,7 +61,7 @@ TEST(io_reader_test, read)
 
         uint8 sub_format[16];
         r.read(sub_format);
-        ASSERT_TRUE(mem::equal(sub_format, subtype_pcm));
+        ASSERT_EQ(std::memcmp(sub_format, subtype_pcm, sizeof(sub_format)), 0);
 
         ASSERT_EQ(r.tell(), r.size());
         ASSERT_THROW(r.read_n(1), std::runtime_error);
@@ -106,7 +106,7 @@ TEST(io_reader_test, gather)
         ASSERT_EQ(bits_per_sample,       32);
         ASSERT_EQ(valid_bits_per_sample, 24);
         ASSERT_EQ(channel_mask,          0x33);
-        ASSERT_TRUE(mem::equal(sub_format, subtype_pcm));
+        ASSERT_EQ(std::memcmp(sub_format, subtype_pcm, sizeof(sub_format)), 0);
 
         ASSERT_EQ(r.tell(), r.size());
         ASSERT_THROW(r.read_n(1), std::runtime_error);

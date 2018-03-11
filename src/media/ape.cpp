@@ -14,13 +14,13 @@
 #include <amp/media/dictionary.hpp>
 #include <amp/media/image.hpp>
 #include <amp/media/tags.hpp>
-#include <amp/memory.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
 #include <amp/u8string.hpp>
 
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <string_view>
 #include <utility>
 
@@ -42,23 +42,21 @@ struct header
 
     bool read(io::stream& file)
     {
-        constexpr char const apetagex[] { 'A','P','E','T','A','G','E','X' };
-
         file.gather<LE>(preamble, version, size, items, flags, reserved);
-        return mem::equal(preamble, apetagex) && validate_no_preamble_();
+        return (std::memcmp(preamble, "APETAGEX", 8) == 0) && valid_();
     }
 
     bool read_no_preamble(io::reader& r) noexcept
     {
         if (r.size() >= (ape::header_size - 8)) {
             r.gather_unchecked<LE>(version, size, items, flags, reserved);
-            return validate_no_preamble_();
+            return valid_();
         }
         return false;
     }
 
 private:
-    bool validate_no_preamble_() const noexcept
+    bool valid_() const noexcept
     {
         return (size >= ape::header_size)
             && (reserved == 0)

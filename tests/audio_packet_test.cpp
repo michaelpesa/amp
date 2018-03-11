@@ -32,7 +32,6 @@ TEST(audio_packet, resize)
     ASSERT_EQ(pkt.size(), 128);
     ASSERT_EQ(pkt.capacity(), 128);
     ASSERT_FALSE(pkt.empty());
-    ASSERT_TRUE(is_aligned(pkt.data(), 32));
 
     float buf[128] = {};
     ASSERT_TRUE(std::equal(std::begin(buf), std::end(buf), std::begin(pkt)));
@@ -50,14 +49,12 @@ TEST(audio_packet, resize)
     ASSERT_EQ(pkt.size(), 1024);
     ASSERT_EQ(pkt.capacity(), 1024);
     ASSERT_FALSE(pkt.empty());
-    ASSERT_TRUE(is_aligned(pkt.data(), 32));
     ASSERT_TRUE(std::equal(std::begin(buf), std::end(buf), std::begin(pkt)));
 
     pkt.resize(128);
     ASSERT_EQ(pkt.size(), 128);
     ASSERT_EQ(pkt.capacity(), 1024);
     ASSERT_FALSE(pkt.empty());
-    ASSERT_TRUE(is_aligned(pkt.data(), 32));
     ASSERT_TRUE(std::equal(std::begin(buf), std::end(buf), std::begin(pkt)));
 }
 

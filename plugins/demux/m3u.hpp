@@ -11,12 +11,12 @@
 
 #include <amp/error.hpp>
 #include <amp/io/stream.hpp>
-#include <amp/memory.hpp>
 #include <amp/net/uri.hpp>
 #include <amp/string.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <ratio>
@@ -74,13 +74,19 @@ inline auto parse_quoted_string(std::string_view s)
     return s;
 }
 
-inline bool match(std::string_view& x, std::string_view const y) noexcept
+inline bool has_prefix(std::string_view const x,
+                       std::string_view const y) noexcept
 {
-    if (y.size() <= x.size()) {
-        if (mem::equal(x.data(), y.data(), y.size())) {
-            x.remove_prefix(y.size());
-            return true;
-        }
+    return (y.size() <= x.size())
+        && std::equal(y.begin(), y.end(), x.begin());
+}
+
+inline bool consume_prefix(std::string_view& x,
+                           std::string_view const y) noexcept
+{
+    if (aux::has_prefix(x, y)) {
+        x.remove_prefix(y.size());
+        return true;
     }
     return false;
 }
@@ -122,10 +128,10 @@ public:
         while (first != last) {
             auto line = *first++;
 
-            if (aux::match(line, "#EXT-X-ENDLIST")) {
+            if (aux::consume_prefix(line, "#EXT-X-ENDLIST")) {
                 break;
             }
-            else if (aux::match(line, "#EXT-X-VERSION:")) {
+            else if (aux::consume_prefix(line, "#EXT-X-VERSION:")) {
                 if (version != 0) {
                     raise(errc::failure,
                           "media playlist cannot contain "
@@ -133,7 +139,7 @@ public:
                 }
                 version = m3u::aux::parse_integer(line);
             }
-            else if (aux::match(line, "#EXTINF:")) {
+            else if (aux::consume_prefix(line, "#EXTINF:")) {
                 if (first == last) {
                     raise(errc::failure,
                           "'#EXTINF' tag must be followed by a "
@@ -145,7 +151,7 @@ public:
                 segments.emplace_back(segment_location.resolve(location),
                                       segment_duration);
             }
-            else if (aux::match(line, "#EXT-X-PLAYLIST-TYPE:")) {
+            else if (aux::consume_prefix(line, "#EXT-X-PLAYLIST-TYPE:")) {
                 is_live = (line != "VOD");
             }
         }
@@ -165,19 +171,15 @@ public:
         // FIXME: workaround to force selection of audio-only playlists.
 #if 0
         for (auto&& codec : tokenize(codecs, ',')) {
-            if (prefix.size() <= codec.size()) {
-                if (mem::equal(codec.data(), prefix.data(), prefix.size())) {
-                    return true;
-                }
+            if (aux::has_prefix(codec, prefix)) {
+                return true;
             }
         }
         return false;
 #else
         if (codecs.find(',') == codecs.npos) {
-            if (prefix.size() <= codecs.size()) {
-                if (mem::equal(codecs.data(), prefix.data(), prefix.size())) {
-                    return true;
-                }
+            if (aux::has_prefix(codecs, prefix)) {
+                return true;
             }
         }
         return false;
@@ -211,7 +213,7 @@ public:
         while (first != last) {
             auto line = *first++;
 
-            if (aux::match(line, "#EXT-X-STREAM-INF:")) {
+            if (aux::consume_prefix(line, "#EXT-X-STREAM-INF:")) {
                 if (first == last) {
                     raise(errc::failure,
                           "'#EXT-X-STREAM-INF' tag must be "

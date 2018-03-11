@@ -10,7 +10,6 @@
 
 
 #include <amp/bitops.hpp>
-#include <amp/memory.hpp>
 #include <amp/net/endian.hpp>
 #include <amp/range.hpp>
 #include <amp/stddef.hpp>

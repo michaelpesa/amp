@@ -12,7 +12,6 @@
 #include <amp/audio/pcm.hpp>
 #include <amp/error.hpp>
 #include <amp/io/buffer.hpp>
-#include <amp/memory.hpp>
 #include <amp/numeric.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/stddef.hpp>

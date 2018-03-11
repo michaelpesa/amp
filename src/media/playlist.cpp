@@ -39,19 +39,17 @@ namespace amp {
 namespace media {
 namespace {
 
+constexpr auto playlist_magic = net::to_host<BE>("AMPL"_4cc);
+
 struct playlist_header
 {
-    uint8  magic[4];
+    uint32 magic;
     uint16 version;
     uint16 flags;
     uint32 size;
 
     bool valid() const noexcept
-    {
-        return (io::load<uint32,BE>(magic) == "AMPL"_4cc)
-            && (version == 1)
-            && (flags == 0);
-    }
+    { return (magic == playlist_magic) && (version == 1) && (flags == 0); }
 };
 
 
@@ -159,7 +157,7 @@ void save_playlist_(io::stream& file, std::vector<media::track> const& tracks)
         raise(errc::failure, "LZ4 compression failed (code: %d)", ret);
     }
 
-    playlist_header const head{{'A','M','P','L'}, 1, 0, decompressed_size};
+    playlist_header const head{playlist_magic, 1, 0, decompressed_size};
     file.scatter<LE>(head.magic, head.version, head.flags, head.size);
 
     auto const compressed_size = static_cast<uint32>(ret);

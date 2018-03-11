@@ -43,7 +43,7 @@ inline void process_sse(float* const data, std::size_t const n,
         v = _mm_mul_ps(v, _mm_set1_ps(scale));
         v = _mm_max_ps(v, _mm_set1_ps(-1.f));
         v = _mm_min_ps(v, _mm_set1_ps(+1.f));
-        _mm_store_ps(&data[i], v);
+        _mm_storeu_ps(&data[i], v);
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -68,7 +68,7 @@ inline void process_avx(float* const data, std::size_t const n,
         v = _mm256_mul_ps(v, _mm256_set1_ps(scale));
         v = _mm256_max_ps(v, _mm256_set1_ps(-1.f));
         v = _mm256_min_ps(v, _mm256_set1_ps(+1.f));
-        _mm256_store_ps(&data[i], v);
+        _mm256_storeu_ps(&data[i], v);
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -108,19 +108,15 @@ void replaygain_filter::process(audio::packet& pkt) const noexcept
 # pragma clang diagnostic pop
 #endif
 
-    auto const data = pkt.data();
-    AMP_ASSERT(is_aligned(data, 32));
-    AMP_ASSUME(is_aligned(data, 32));
-
 #if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
     if (cpu::has_avx()) {
-        return process_avx(data, pkt.size(), scale_);
+        return process_avx(pkt.data(), pkt.size(), scale_);
     }
     if (cpu::has_sse()) {
-        return process_sse(data, pkt.size(), scale_);
+        return process_sse(pkt.data(), pkt.size(), scale_);
     }
 #endif
-    return process_generic(data, pkt.size(), scale_);
+    return process_generic(pkt.data(), pkt.size(), scale_);
 }
 
 

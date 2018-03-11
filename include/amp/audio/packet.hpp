@@ -11,7 +11,6 @@
 
 #include <amp/bitops.hpp>
 #include <amp/error.hpp>
-#include <amp/memory.hpp>
 #include <amp/range.hpp>
 #include <amp/stddef.hpp>
 
@@ -73,7 +72,9 @@ public:
 
     ~packet_buffer()
     {
-        mem::aligned_free(data_);
+        if (data_ != nullptr) {
+            std::free(data_);
+        }
     }
 
     void swap(packet_buffer& x) noexcept
@@ -169,12 +170,16 @@ public:
 
     void resize(size_type const n)
     {
-        if (n > capacity()) {
-            auto const new_data = packet_buffer::allocate_(n);
-            std::copy(cbegin(), cend(), new_data);
-            std::fill(new_data + capacity(), new_data + n, value_type{});
-            mem::aligned_free(std::exchange(data_, new_data));
-            capacity_ = n;
+        if (n > size()) {
+            if (n > capacity()) {
+                auto const tmp = std::realloc(data_, n * sizeof(value_type));
+                if (tmp == nullptr) {
+                    raise_bad_alloc();
+                }
+                data_ = static_cast<value_type*>(tmp);
+                capacity_ = n;
+            }
+            std::fill(begin() + size(), begin() + n, value_type{});
         }
         size_ = n;
     }
@@ -182,8 +187,11 @@ public:
     void resize(size_type const n, uninitialized_t)
     {
         if (n > capacity()) {
-            auto const new_data = packet_buffer::allocate_(n);
-            mem::aligned_free(std::exchange(data_, new_data));
+            auto const tmp = std::realloc(data_, n * sizeof(value_type));
+            if (tmp == nullptr) {
+                raise_bad_alloc();
+            }
+            data_ = static_cast<value_type*>(tmp);
             capacity_ = n;
         }
         size_ = n;
@@ -192,9 +200,8 @@ public:
 private:
     AMP_INLINE static pointer allocate_(size_type const n)
     {
-        static constexpr auto alignment = 32_sz;
         if (n != 0) {
-            auto const p = mem::aligned_alloc(alignment, n * sizeof(float));
+            auto const p = std::malloc(n * sizeof(float));
             if (p == nullptr) {
                 raise_bad_alloc();
             }

@@ -14,7 +14,6 @@
 #include <amp/error.hpp>
 #include <amp/io/buffer.hpp>
 #include <amp/io/memory.hpp>
-#include <amp/memory.hpp>
 #include <amp/range.hpp>
 #include <amp/stddef.hpp>
 
@@ -267,10 +266,10 @@ void pack_2ch_I16LE_sse2(void const* const src, std::size_t const n,
         butterfly(f0, f1);
         butterfly(f2, f3);
 
-        _mm_store_ps(&dst[i*2 +  0], _mm_mul_ps(f0, scale));
-        _mm_store_ps(&dst[i*2 +  4], _mm_mul_ps(f1, scale));
-        _mm_store_ps(&dst[i*2 +  8], _mm_mul_ps(f2, scale));
-        _mm_store_ps(&dst[i*2 + 12], _mm_mul_ps(f3, scale));
+        _mm_storeu_ps(&dst[i*2 +  0], _mm_mul_ps(f0, scale));
+        _mm_storeu_ps(&dst[i*2 +  4], _mm_mul_ps(f1, scale));
+        _mm_storeu_ps(&dst[i*2 +  8], _mm_mul_ps(f2, scale));
+        _mm_storeu_ps(&dst[i*2 + 12], _mm_mul_ps(f3, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -304,8 +303,8 @@ void pack_2ch_I16LE_avx2(void const* const src, std::size_t const n,
 
         butterfly(f0, f1);
 
-        _mm256_store_ps(&dst[i*2 + 0], _mm256_mul_ps(f0, scale));
-        _mm256_store_ps(&dst[i*2 + 8], _mm256_mul_ps(f1, scale));
+        _mm256_storeu_ps(&dst[i*2 + 0], _mm256_mul_ps(f0, scale));
+        _mm256_storeu_ps(&dst[i*2 + 8], _mm256_mul_ps(f1, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -336,8 +335,8 @@ void pack_2ch_I32LE_sse2(void const* const src, std::size_t const n,
 
         butterfly(f0, f1);
 
-        _mm_store_ps(&dst[i*2 + 0], _mm_mul_ps(f0, scale));
-        _mm_store_ps(&dst[i*2 + 4], _mm_mul_ps(f1, scale));
+        _mm_storeu_ps(&dst[i*2 + 0], _mm_mul_ps(f0, scale));
+        _mm_storeu_ps(&dst[i*2 + 4], _mm_mul_ps(f1, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -368,8 +367,8 @@ void pack_2ch_I32LE_avx2(void const* const src, std::size_t const n,
 
         butterfly(f0, f1);
 
-        _mm256_store_ps(&dst[i*2 + 0], _mm256_mul_ps(f0, scale));
-        _mm256_store_ps(&dst[i*2 + 8], _mm256_mul_ps(f1, scale));
+        _mm256_storeu_ps(&dst[i*2 + 0], _mm256_mul_ps(f0, scale));
+        _mm256_storeu_ps(&dst[i*2 + 8], _mm256_mul_ps(f1, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -393,8 +392,8 @@ void pack_2ch_F32LE_sse(void const* const src, std::size_t const n,
         auto f1 = _mm_loadu_ps(&R[i]);
         butterfly(f0, f1);
 
-        _mm_store_ps(&dst[i*2 + 0], f0);
-        _mm_store_ps(&dst[i*2 + 4], f1);
+        _mm_storeu_ps(&dst[i*2 + 0], f0);
+        _mm_storeu_ps(&dst[i*2 + 4], f1);
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -418,8 +417,8 @@ void pack_2ch_F32LE_avx2(void const* const src, std::size_t const n,
         auto f1 = _mm256_loadu_ps(&R[i]);
         butterfly(f0, f1);
 
-        _mm256_store_ps(&dst[i*2 + 0], f0);
-        _mm256_store_ps(&dst[i*2 + 8], f1);
+        _mm256_storeu_ps(&dst[i*2 + 0], f0);
+        _mm256_storeu_ps(&dst[i*2 + 8], f1);
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -501,10 +500,10 @@ void convert_I8_sse2(int8 const* const src, std::size_t const n,
         auto f2 = _mm_cvtepi32_ps(_mm_srai_epi32(i2, 24));
         auto f3 = _mm_cvtepi32_ps(_mm_srai_epi32(i3, 24));
 
-        _mm_store_ps(&dst[i +  0], _mm_mul_ps(f0, scale));
-        _mm_store_ps(&dst[i +  4], _mm_mul_ps(f1, scale));
-        _mm_store_ps(&dst[i +  8], _mm_mul_ps(f2, scale));
-        _mm_store_ps(&dst[i + 12], _mm_mul_ps(f3, scale));
+        _mm_storeu_ps(&dst[i +  0], _mm_mul_ps(f0, scale));
+        _mm_storeu_ps(&dst[i +  4], _mm_mul_ps(f1, scale));
+        _mm_storeu_ps(&dst[i +  8], _mm_mul_ps(f2, scale));
+        _mm_storeu_ps(&dst[i + 12], _mm_mul_ps(f3, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -533,8 +532,8 @@ void convert_I8_avx2(int8 const* const src, std::size_t const n,
         auto f0 = _mm256_cvtepi32_ps(i0);
         auto f1 = _mm256_cvtepi32_ps(i1);
 
-        _mm256_store_ps(&dst[i + 0], _mm256_mul_ps(f0, scale));
-        _mm256_store_ps(&dst[i + 8], _mm256_mul_ps(f1, scale));
+        _mm256_storeu_ps(&dst[i + 0], _mm256_mul_ps(f0, scale));
+        _mm256_storeu_ps(&dst[i + 8], _mm256_mul_ps(f1, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -566,8 +565,8 @@ void convert_I16_sse2(int16 const* const src, std::size_t const n,
         auto f0 = _mm_cvtepi32_ps(_mm_srai_epi32(i0, 16));
         auto f1 = _mm_cvtepi32_ps(_mm_srai_epi32(i1, 16));
 
-        _mm_store_ps(&dst[i + 0], _mm_mul_ps(f0, scale));
-        _mm_store_ps(&dst[i + 4], _mm_mul_ps(f1, scale));
+        _mm_storeu_ps(&dst[i + 0], _mm_mul_ps(f0, scale));
+        _mm_storeu_ps(&dst[i + 4], _mm_mul_ps(f1, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -593,7 +592,7 @@ void convert_I16_avx2(int16 const* const src, std::size_t const n,
         }
         auto i0 = _mm256_cvtepi16_epi32(_mm_xor_si128(w0, sign));
         auto f0 = _mm256_cvtepi32_ps(i0);
-        _mm256_store_ps(&dst[i], _mm256_mul_ps(f0, scale));
+        _mm256_storeu_ps(&dst[i], _mm256_mul_ps(f0, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -619,7 +618,7 @@ void convert_I24_ssse3(uint8 const* const src, std::size_t const n,
         i0 = _mm_xor_si128(i0, sign);
 
         auto f0 = _mm_cvtepi32_ps(_mm_srai_epi32(i0, 8));
-        _mm_store_ps(&dst[i], _mm_mul_ps(f0, scale));
+        _mm_storeu_ps(&dst[i], _mm_mul_ps(f0, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -646,7 +645,7 @@ void convert_I24_avx2(uint8 const* const src, std::size_t const n,
         i0 = _mm256_xor_si256(i0, sign);
 
         auto f0 = _mm256_cvtepi32_ps(_mm256_srai_epi32(i0, 8));
-        _mm256_store_ps(&dst[i], _mm256_mul_ps(f0, scale));
+        _mm256_storeu_ps(&dst[i], _mm256_mul_ps(f0, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -671,7 +670,7 @@ void convert_I32_sse2(int32 const* const src, std::size_t const n,
             i0 = bswap32(i0);
         }
         auto f0 = _mm_cvtepi32_ps(_mm_xor_si128(i0, sign));
-        _mm_store_ps(&dst[i], _mm_mul_ps(f0, scale));
+        _mm_storeu_ps(&dst[i], _mm_mul_ps(f0, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -696,7 +695,7 @@ void convert_I32_avx2(int32 const* const src, std::size_t const n,
             i0 = bswap32(i0);
         }
         auto f0 = _mm256_cvtepi32_ps(_mm256_xor_si256(i0, sign));
-        _mm256_store_ps(&dst[i], _mm256_mul_ps(f0, scale));
+        _mm256_storeu_ps(&dst[i], _mm256_mul_ps(f0, scale));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -718,7 +717,7 @@ void convert_F32_sse2(float const* const src, std::size_t const n,
         if (byte_order(Enc) == BE) {
             f0 = _mm_castsi128_ps(bswap32(_mm_castps_si128(f0)));
         }
-        _mm_store_ps(&dst[i], f0);
+        _mm_storeu_ps(&dst[i], f0);
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -740,7 +739,7 @@ void convert_F32_avx2(float const* const src, std::size_t const n,
         if (byte_order(Enc) == BE) {
             f0 = _mm256_castsi256_ps(bswap32(_mm256_castps_si256(f0)));
         }
-        _mm256_store_ps(&dst[i], f0);
+        _mm256_storeu_ps(&dst[i], f0);
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -766,7 +765,7 @@ void convert_F64_sse2(double const* const src, std::size_t const n,
         }
         auto f0 = _mm_cvtpd_ps(d0);
         auto f1 = _mm_cvtpd_ps(d1);
-        _mm_store_ps(&dst[i], _mm_movelh_ps(f0, f1));
+        _mm_storeu_ps(&dst[i], _mm_movelh_ps(f0, f1));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -788,7 +787,7 @@ void convert_F64_avx2(double const* const src, std::size_t const n,
         if (byte_order(Enc) == BE) {
             d0 = _mm256_castsi256_pd(bswap64(_mm256_castpd_si256(d0)));
         }
-        _mm_store_ps(&dst[i], _mm256_cvtpd_ps(d0));
+        _mm_storeu_ps(&dst[i], _mm256_cvtpd_ps(d0));
     }
 
     AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
@@ -836,9 +835,6 @@ AMP_NOINLINE
 void convert(void const* const src, std::size_t const n,
              float* const dst, pcm::state const& st) noexcept
 {
-    AMP_ASSERT(is_aligned(dst, 32));
-    AMP_ASSUME(is_aligned(dst, 32));
-
     switch (st.enc) {
     case I8:    return pcm::convert<I8   >(src, n, dst, st);
     case I16LE: return pcm::convert<I16LE>(src, n, dst, st);

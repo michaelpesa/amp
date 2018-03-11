@@ -10,7 +10,9 @@
 
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <iterator>
+#include <random>
 #include <utility>
 
 #include <gtest/gtest.h>
@@ -25,9 +27,9 @@ class record :
     private totally_ordered<record, char>
 {
 public:
-    char const id;
+    char id;
 
-    record(char const c) noexcept :
+    record(char const c = 0) noexcept :
         id(c)
     {}
 
@@ -635,5 +637,22 @@ TEST(intrusive_multiset_test, erase_range)
     ASSERT_EQ(*(--pos), 'N');
     ASSERT_EQ(*(--pos), 'A');
     ASSERT_EQ(s.size(), 5);
+}
+
+TEST(intrusive_multiset_test, random_insertion)
+{
+    auto generate_record = [
+        urng = std::mt19937{std::random_device{}()},
+        dist = std::uniform_int_distribution<char>{CHAR_MIN, CHAR_MAX}
+    ]() mutable {
+        return record{dist(urng)};
+    };
+    record records[512];
+    std::generate(std::begin(records), std::end(records), generate_record);
+
+    intrusive::multiset<record> s;
+    for (auto&& r : records) {
+        s.insert(r);
+    }
 }
 

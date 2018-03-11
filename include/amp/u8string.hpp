@@ -11,7 +11,6 @@
 
 #include <amp/aux/operators.hpp>
 #include <amp/error.hpp>
-#include <amp/memory.hpp>
 #include <amp/stddef.hpp>
 #include <amp/type_traits.hpp>
 
@@ -399,7 +398,14 @@ public:
     u8string promote();
 
     int compare(const_pointer const s, size_type const n) const noexcept
-    { return mem::compare(data(), size(), s, n); }
+    {
+        auto const cmp_len = std::min(size(), n);
+        auto ret = cmp_len ? std::memcmp(data(), s, cmp_len) : 0;
+        if (ret == 0) {
+            ret = int{size() > n} - int{size() < n};
+        }
+        return ret;
+    }
 
     int compare(const_pointer const s) const noexcept
     { return compare(s, s ? std::strlen(s) : 0); }
@@ -697,7 +703,14 @@ public:
     }
 
     int compare(const_pointer const s, size_type const n) const noexcept
-    { return mem::compare(data(), size(), s, n); }
+    {
+        auto const cmp_len = std::min(size(), n);
+        auto ret = cmp_len ? std::memcmp(data(), s, cmp_len) : 0;
+        if (ret == 0) {
+            ret = int{size() > n} - int{size() < n};
+        }
+        return ret;
+    }
 
     int compare(const_pointer const s) const noexcept
     { return compare(s, s ? std::strlen(s) : 0); }

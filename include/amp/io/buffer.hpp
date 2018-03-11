@@ -12,13 +12,13 @@
 #include <amp/aux/operators.hpp>
 #include <amp/error.hpp>
 #include <amp/io/stream.hpp>
-#include <amp/memory.hpp>
 #include <amp/stddef.hpp>
 #include <amp/type_traits.hpp>
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <utility>
 
 
@@ -146,8 +146,15 @@ public:
     uint8 const& operator[](std::size_t const i) const noexcept
     { return data()[i]; }
 
-    int compare(buffer const& x) const noexcept
-    { return mem::compare(data(), size(), x.data(), x.size()); }
+    int compare(io::buffer const& x) const noexcept
+    {
+        auto const cmp_len = std::min(size(), x.size());
+        auto ret = cmp_len ? std::memcmp(data(), x.data(), cmp_len) : 0;
+        if (ret == 0) {
+            ret = int{size() > x.size()} - int{size() < x.size()};
+        }
+        return ret;
+    }
 
     void clear() noexcept
     { size_ = 0; }
@@ -266,7 +273,7 @@ private:
     { x.swap(y); }
 
     friend bool operator==(buffer const& x, buffer const& y) noexcept
-    { return mem::equal(x.data(), x.size(), y.data(), y.size()); }
+    { return (x.compare(y) == 0); }
 
     friend bool operator<(buffer const& x, buffer const& y) noexcept
     { return (x.compare(y) < 0); }

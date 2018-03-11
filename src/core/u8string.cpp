@@ -8,7 +8,6 @@
 #include <amp/crc.hpp>
 #include <amp/error.hpp>
 #include <amp/io/stream.hpp>
-#include <amp/memory.hpp>
 #include <amp/numeric.hpp>
 #include <amp/scope_guard.hpp>
 #include <amp/stddef.hpp>
@@ -21,6 +20,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <mutex>
 #include <new>
 #include <utility>
@@ -230,9 +230,10 @@ void u8string::intern()
         return;
     }
 
-    auto& head = intern_hash[rep_->hash_code % intern_hash_size];
+    auto const len = rep_->size;
+    auto&& head = intern_hash[rep_->hash_code % intern_hash_size];
     for (auto x = head; x != nullptr; x = x->intern_next) {
-        if (mem::equal(rep_->data(), rep_->size, x->data(), x->size)) {
+        if (x->size == len && std::memcmp(rep_->data(), x->data(), len) == 0) {
             rep_->release();
             rep_ = x;
             rep_->add_ref();
@@ -257,7 +258,7 @@ u8string u8string::intern(char const* const s, std::size_t const len)
     auto& head = intern_hash[hash_code % intern_hash_size];
 
     for (auto x = head; x != nullptr; x = x->intern_next) {
-        if (mem::equal(s, len, x->data(), x->size)) {
+        if (x->size == len && std::memcmp(s, x->data(), len) == 0) {
             x->add_ref();
             return u8string::consume(x);
         }

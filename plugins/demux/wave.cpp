@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstddef>
+#include <cstring>
 #include <memory>
 #include <string_view>
 #include <type_traits>
@@ -143,9 +144,10 @@ struct waveformatextensible
 
 inline uint16 get_format_tag(guid sub_format) noexcept
 {
-    return mem::equal(&sub_format.data[4], &subtype::base.data[4], 12)
-         ? io::load<uint16,LE>(&sub_format.data[0])
-         : uint16{0xfffe};
+    if (std::memcmp(&sub_format.data[4], &subtype::base.data[4], 12) == 0) {
+        return io::load<uint16,LE>(&sub_format.data[0]);
+    }
+    return uint16{0xfffe};
 }
 
 void get_codec_id_and_flags(waveformatextensible const& wfx,

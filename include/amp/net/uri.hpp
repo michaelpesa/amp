@@ -10,12 +10,12 @@
 
 
 #include <amp/aux/operators.hpp>
-#include <amp/memory.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
 #include <amp/utility.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <iterator>
@@ -185,7 +185,7 @@ private:
     }
 
     friend bool operator==(uri const& x, uri const& y) noexcept
-    { return mem::equal(x.data(), x.size(), y.data(), y.size()); }
+    { return std::equal(x.begin(), x.end(), y.begin(), y.end()); }
 
     ref_ptr<net::uri_rep const> rep;
 };

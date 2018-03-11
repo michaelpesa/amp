@@ -35,7 +35,7 @@ struct rbtree_node
 {
     rbtree_node* left;
     rbtree_node* right;
-    uintptr      parent_and_color;
+    uintptr parent_and_color;
 };
 
 // Ensure necessary alignment for embedding the node's color in the lowest bit
@@ -331,11 +331,11 @@ public:
 
     template<typename K>
     auto lower_bound(K const& k) const noexcept
-    { return lower_bound_(k, root(), const_cast<rbtree_node*>(&head_)); }
+    { return lower_bound_(k, root_(), const_cast<rbtree_node*>(&head_)); }
 
     template<typename K>
     auto upper_bound(K const& k) const noexcept
-    { return upper_bound_(k, root(), const_cast<rbtree_node*>(&head_)); }
+    { return upper_bound_(k, root_(), const_cast<rbtree_node*>(&head_)); }
 
     template<typename K>
     auto find(K const& k) const noexcept
@@ -351,7 +351,7 @@ public:
     auto equal_range_unique(K const& k) const noexcept
     {
         auto y = const_cast<rbtree_node*>(&head_);
-        for (auto x = root(); x != nullptr; ) {
+        for (auto x = root_(); x != nullptr; ) {
             if (value_comp()(k, to_value(*x))) {
                 y = x;
                 x = x->left;
@@ -371,7 +371,7 @@ public:
     auto equal_range_multi(K const& k) const noexcept
     {
         auto y = const_cast<rbtree_node*>(&head_);
-        for (auto x = root(); x != nullptr; ) {
+        for (auto x = root_(); x != nullptr; ) {
             if (value_comp()(k, to_value(*x))) {
                 y = x;
                 x = x->left;
@@ -491,7 +491,7 @@ public:
         static_assert(noexcept(dispose(std::declval<pointer>())),
                       "disposer must be noexcept");
 
-        auto x = root();
+        auto x = root_();
         while (x != nullptr) {
             auto y = x->left;
             if (y != nullptr) {
@@ -545,7 +545,7 @@ private:
         value_type const& v,
         insert_point& point) noexcept
     {
-        auto x = root();
+        auto x = root_();
         auto y = const_cast<rbtree_node*>(&head_);
         auto p = static_cast<rbtree_node*>(nullptr);
 
@@ -560,7 +560,7 @@ private:
         auto const vacant = !p || value_comp()(to_value(*p), v);
         if (vacant) {
             point.link_left = left_child;
-            point.node      = y;
+            point.node = y;
         }
         return {iterator(p), vacant};
     }
@@ -573,31 +573,28 @@ private:
         if (hint == cend() || value_comp()(v, *hint)) {
             auto prev = hint;
             if (hint == begin() || value_comp()(*(--prev), v)) {
-                point.link_left = !root() || !hint.node_->left;
-                point.node      = point.link_left ? hint.node_ : prev.node_;
+                point.link_left = !root_() || !hint.node_->left;
+                point.node = point.link_left ? hint.node_ : prev.node_;
                 return {iterator(), true};
             }
         }
         return insert_unique_prepare_(v, point);
     }
 
-    void insert_multi_prepare_(
-        value_type const& v,
-        insert_point& point) noexcept
+    void insert_multi_prepare_(value_type const& v,
+                               insert_point& point) noexcept
     {
         return insert_multi_upper_bound_prepare_(v, point);
     }
 
-    void insert_multi_prepare_(
-        const_iterator hint,
-        value_type const& v,
-        insert_point& point) noexcept
+    void insert_multi_prepare_(const_iterator hint, value_type const& v,
+                               insert_point& point) noexcept
     {
         if (hint == cend() || !value_comp()(*hint, v)) {
             auto prev = hint;
             if (hint == begin() || !value_comp()(v, *(--prev))) {
-                point.link_left = !root() || !hint.node_->left;
-                point.node      = point.link_left ? hint.node_ : prev.node_;
+                point.link_left = !root_() || !hint.node_->left;
+                point.node = point.link_left ? hint.node_ : prev.node_;
             }
             else {
                 insert_multi_upper_bound_prepare_(v, point);
@@ -608,30 +605,26 @@ private:
         }
     }
 
-    void insert_multi_upper_bound_prepare_(
-        value_type const& v,
-        insert_point& point) noexcept
+    void insert_multi_upper_bound_prepare_(value_type const& v,
+                                           insert_point& point) noexcept
     {
         auto y = const_cast<rbtree_node*>(&head_);
-        for (auto x = root(); x != nullptr; ) {
+        for (auto x = root_(); x != nullptr; ) {
             y = x;
             x = value_comp()(v, to_value(*x)) ? x->left : x->right;
         }
-
         point.link_left = (y == &head_) || value_comp()(v, to_value(*y));
         point.node = y;
     }
 
-    void insert_multi_lower_bound_prepare_(
-        value_type const& v,
-        insert_point& point) noexcept
+    void insert_multi_lower_bound_prepare_(value_type const& v,
+                                           insert_point& point) noexcept
     {
         auto y = const_cast<rbtree_node*>(&head_);
-        for (auto x = root(); x != nullptr; ) {
+        for (auto x = root_(); x != nullptr; ) {
             y = x;
             x = !value_comp()(to_value(*x), v) ? x->left : x->right;
         }
-
         point.link_left = (y == &head_) || !value_comp()(to_value(*y), v);
         point.node = y;
     }
@@ -680,13 +673,13 @@ private:
         return const_iterator(y);
     }
 
-    AMP_INLINE rbtree_node* root() const noexcept
+    AMP_INLINE rbtree_node* root_() const noexcept
     { return parent(&head_); }
 
     void fix_head_() noexcept
     {
-        if (root()) {
-            set_parent(root(), &head_);
+        if (root_()) {
+            set_parent(root_(), &head_);
         }
         else {
             head_ = {&head_, &head_, 0};
@@ -729,10 +722,10 @@ inline bool rbtree<T, Compare, Tag>::valid_() const noexcept
         return count;
     };
 
-    if (head_.left != minimum(root())) {
+    if (head_.left != minimum(root_())) {
         return false;
     }
-    if (head_.right != maximum(root())) {
+    if (head_.right != maximum(root_())) {
         return false;
     }
 
