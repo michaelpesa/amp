@@ -16,12 +16,12 @@
 #include <amp/u8string.hpp>
 
 #include "audio/replaygain.hpp"
+#include "core/event.hpp"
 #include "core/spsc_queue.hpp"
 #include "media/track.hpp"
 
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -63,43 +63,35 @@ public:
     void set_preset(std::vector<u8string>, audio::replaygain_config);
 
     void set_volume(float const level)
-    {
-        stream_->set_volume(level);
-    }
+    { stream_->set_volume(level); }
 
-    float get_volume() const
-    {
-        return stream_->get_volume();
-    }
+    float volume() const
+    { return stream_->get_volume(); }
 
     void insert_track(media::track const& x)
-    {
-        tracks_.push(x);
-    }
+    { tracks_.push(x); }
 
     template<typename Duration = std::chrono::nanoseconds>
-    Duration get_position() const noexcept
+    Duration position() const noexcept
     {
         auto const pos = position_.load(std::memory_order_relaxed);
         return Duration{muldiv(pos, Duration::period::den, clock_rate_)};
     }
 
-    auto get_bit_rate() const noexcept
-    {
-        return bit_rate_.load(std::memory_order_relaxed);
-    }
+    auto bit_rate() const noexcept
+    { return bit_rate_.load(std::memory_order_relaxed); }
 
-    auto get_state() const noexcept
+    auto state() const noexcept
     { return state_; }
 
     bool is_playing() const noexcept
-    { return (get_state() == audio::player_state::playing); }
+    { return (state() == audio::player_state::playing); }
 
     bool is_paused() const noexcept
-    { return (get_state() == audio::player_state::paused); }
+    { return (state() == audio::player_state::paused); }
 
     bool is_stopped() const noexcept
-    { return (get_state() == audio::player_state::stopped); }
+    { return (state() == audio::player_state::stopped); }
 
 private:
     struct event
@@ -126,7 +118,7 @@ private:
     audio::player_delegate& delegate_;
     spsc::queue<media::track> tracks_;
     spsc::queue<event> events_;
-    std::condition_variable cnd_;
+    auto_reset_event ready_;
     std::mutex mtx_;
     std::thread thread_;
     std::atomic<uint64> position_{};

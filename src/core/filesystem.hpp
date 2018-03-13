@@ -148,15 +148,14 @@ enum class user_directory {
 
 extern u8string get_user_directory(fs::user_directory);
 
+extern bool remove(u8string const&);
+extern bool create_directory(u8string const&);
+
+extern file_status status(u8string const&);
 extern u8string extension(u8string const&);
 extern u8string parent_path(u8string const&);
 extern u8string filename(u8string const&);
 extern u8string stem(u8string const&);
-
-extern file_status status(u8string const&);
-extern bool remove(u8string const&);
-extern bool create_directory(u8string const&);
-
 
 inline bool status_known(fs::file_status const s) noexcept
 { return (s.type() != fs::file_type::none); }

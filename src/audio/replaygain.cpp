@@ -88,7 +88,7 @@ inline void process_generic(float* const data, std::size_t const n,
 {
     for (auto const i : xrange(n)) {
         auto const x = data[i] * scale;
-        data[i] = (x < -1.f) ? -1.f : (x > +1.f) ? +1.f : x;
+        data[i] = (x < -1.f) ? -1.f : (x > 1.f) ? 1.f : x;
     }
 }
 

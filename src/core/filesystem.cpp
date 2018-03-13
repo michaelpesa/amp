@@ -198,7 +198,7 @@ directory_range::iterator& directory_range::iterator::operator++()
             return *this;
         }
     }
-    auto const ev = static_cast<int>(::GetLastError());
+    auto const e = static_cast<int>(::GetLastError());
 #else
     auto const handle = static_cast<::DIR*>(range_->handle_);
     while (auto entry = (errno = 0, ::readdir(handle))) {
@@ -207,11 +207,11 @@ directory_range::iterator& directory_range::iterator::operator++()
             return *this;
         }
     }
-    auto const ev = errno;
+    auto const e = errno;
 #endif
     range_ = nullptr;
-    if (AMP_UNLIKELY(ev != 0)) {
-        raise_system_error(ev);
+    if (AMP_UNLIKELY(e != 0)) {
+        raise_system_error(e);
     }
     return *this;
 }
@@ -281,17 +281,17 @@ bool remove(u8string const& p)
 #if defined(_WIN32)
     auto removed = (::DeleteFileW(widen(p).c_str()) != 0);
     if (!removed) {
-        auto const ev = ::GetLastError();
-        if (ev != ERROR_FILE_NOT_FOUND) {
-            raise_system_error(static_cast<int>(ev));
+        auto const e = ::GetLastError();
+        if (e != ERROR_FILE_NOT_FOUND) {
+            raise_system_error(static_cast<int>(e));
         }
     }
 #else
     auto removed = (::unlink(p.c_str()) == 0);
     if (!removed) {
-        auto const ev = errno;
-        if (ev != ENOENT) {
-            raise_system_error(ev);
+        auto const e = errno;
+        if (e != ENOENT) {
+            raise_system_error(e);
         }
     }
 #endif
@@ -303,17 +303,17 @@ bool create_directory(u8string const& p)
 #if defined(_WIN32)
     auto created = (::CreateDirectoryW(widen(p).c_str(), nullptr) != 0);
     if (!created) {
-        auto const ev = ::GetLastError();
-        if (ev != ERROR_ALREADY_EXISTS) {
-            raise_system_error(static_cast<int>(ev));
+        auto const e = ::GetLastError();
+        if (e != ERROR_ALREADY_EXISTS) {
+            raise_system_error(static_cast<int>(e));
         }
     }
 #else
     auto created = (::mkdir(p.c_str(), as_underlying(perms::all)) == 0);
     if (!created) {
-        auto const ev = errno;
-        if (ev != EEXIST || !is_directory(p)) {
-            raise_system_error(ev);
+        auto const e = errno;
+        if (e != EEXIST || !is_directory(p)) {
+            raise_system_error(e);
         }
     }
 #endif
@@ -325,7 +325,7 @@ file_status status(u8string const& p)
 #if defined(_WIN32)
     auto const attr = ::GetFileAttributesW(widen(p).c_str());
     if (attr == static_cast<::DWORD>(-1)) {
-        switch (auto const ev = ::GetLastError()) {
+        switch (auto const e = ::GetLastError()) {
         case ERROR_BAD_NETPATH:
         case ERROR_BAD_PATHNAME:
         case ERROR_FILE_NOT_FOUND:
@@ -335,7 +335,7 @@ file_status status(u8string const& p)
         case ERROR_INVALID_PARAMETER:
             return file_status{file_type::not_found};
         default:
-            raise_system_error(static_cast<int>(ev));
+            raise_system_error(static_cast<int>(e));
         }
     }
 
@@ -350,12 +350,12 @@ file_status status(u8string const& p)
 #else
     struct ::stat st;
     if (::stat(p.c_str(), &st) != 0) {
-        switch (auto const ev = errno) {
+        switch (auto const e = errno) {
         case ENOTDIR:
         case ENOENT:
             return file_status{file_type::not_found};
         default:
-            raise_system_error(ev);
+            raise_system_error(e);
         }
     }
 

@@ -71,15 +71,15 @@ void player::set_preset(std::vector<u8string> x, audio::replaygain_config y)
 
     if (!is_stopped()) {
         events_.emplace(event::state);
-        cnd_.notify_one();
+        ready_.post();
     }
 }
 
-void player::seek(std::chrono::nanoseconds const position)
+void player::seek(std::chrono::nanoseconds const pos)
 {
     AMP_ASSERT(!is_stopped() && "cannot seek while stopped");
-    events_.emplace(event::seek, static_cast<uint64>(position.count()));
-    cnd_.notify_one();
+    events_.emplace(event::seek, static_cast<uint64>(pos.count()));
+    ready_.post();
 }
 
 void player::start()
@@ -96,7 +96,7 @@ void player::stop()
 {
     if (thread_.joinable()) {
         events_.emplace(event::stop);
-        cnd_.notify_one();
+        ready_.post();
         thread_.join();
     }
 
@@ -112,7 +112,7 @@ void player::pause()
 {
     AMP_ASSERT(!is_stopped() && "cannot pause while stopped");
     events_.emplace(event::pause);
-    cnd_.notify_one();
+    ready_.post();
     state_ = is_playing() ? player_state::paused : player_state::playing;
 }
 
@@ -156,7 +156,7 @@ void player::run_thread_()
     audio::packet pkt;
     audio::source_context source, pending_source;
     audio::filter_chain chain;
-    audio::sink_context sink([&]{
+    audio::sink_context sink(ready_, [&]{
         std::lock_guard<std::mutex> const lk{mtx_};
         chain.rebuild(preset_, rg_config_);
         return stream_;
@@ -245,12 +245,9 @@ void player::run_thread_()
         return ret;
     };
 
-    auto poll = [&](std::chrono::nanoseconds const timeout) {
-        auto const status = [&]{
-            std::unique_lock<std::mutex> lk{mtx_};
-            return cnd_.wait_for(lk, timeout);
-        }();
-        return (status == std::cv_status::no_timeout) ? process_events() : 0;
+    auto poll = [&]() {
+        ready_.wait();
+        return !events_.empty() ? process_events() : 0;
     };
 
     auto prepare_track_change = [&]{
@@ -287,7 +284,7 @@ void player::run_thread_()
         return process_events();
     };
 
-    auto process_packet = [&, timeout = sink.get_wait_timeout()]{
+    auto process_packet = [&]{
         while (pkt.empty()) {
             if (auto const ret = receive_packet()) {
                 return ret;
@@ -306,7 +303,7 @@ void player::run_thread_()
                 pkt.clear();
                 return uint32{0};
             }
-            if (auto const ret = poll(timeout)) {
+            if (auto const ret = poll()) {
                 pkt.pop_front(pkt.size() - remain);
                 return ret;
             }
@@ -327,7 +324,7 @@ play:
 pause:
     sink.pause();
     for (;;) {
-        auto const ret = poll(std::chrono::nanoseconds::max());
+        auto const ret = poll();
         if (ret & event::pause) { goto play; }
         if (ret & event::stop) { return; }
     }

@@ -162,6 +162,11 @@ mp4::box_header read_box_header(io::stream& file)
     return header;
 }
 
+AMP_INLINE auto& add_child(mp4::box& parent, mp4::box_header const& header)
+{
+    return *parent.children.insert(*new mp4::box{header, &parent});
+}
+
 void read_container(mp4::box&, io::stream&, mp4::box_checker);
 
 template<uint32 N>
@@ -298,7 +303,7 @@ void read_stts(mp4::box& box, io::stream& file)
     file.gather<BE>(stts.version_and_flags,
                     stts_entry_count);
 
-    stts.entries.resize(stts_entry_count, uninitialized);
+    stts.entries.resize(stts_entry_count);
     for (auto&& entry : stts.entries) {
         file.gather<BE>(entry.sample_count,
                         entry.sample_delta);
@@ -366,7 +371,7 @@ void read_stsd(mp4::box& box, io::stream& file)
             break;
         }
 
-        auto&& soun = *box.children.insert(*new mp4::box{header, &box});
+        auto&& soun = add_child(box, header);
         read_soun(soun, file);
         file.seek(header.fpos + header.size);
     }
@@ -434,7 +439,7 @@ void read_stz2(mp4::box& box, io::stream& file)
                     stz2.sample_count);
 
     stz2.sample_size = 0;
-    stz2.entries.resize(stz2.sample_count, uninitialized);
+    stz2.entries.resize(stz2.sample_count);
 
     switch (stz2_field_size) {
     case 16:
@@ -470,7 +475,7 @@ void read_stsc(mp4::box& box, io::stream& file)
     file.gather<BE>(stsc.version_and_flags,
                     stsc_entry_count);
 
-    stsc.entries.resize(stsc_entry_count, uninitialized);
+    stsc.entries.resize(stsc_entry_count);
     for (auto&& entry : stsc.entries) {
         file.gather<BE>(entry.first_chunk,
                         entry.samples_per_chunk,
@@ -495,7 +500,7 @@ void read_stco(mp4::box& box, io::stream& file)
     file.gather<BE>(stco.version_and_flags,
                     stco_entry_count);
 
-    stco.entries.resize(stco_entry_count, uninitialized);
+    stco.entries.resize(stco_entry_count);
     for (auto&& entry : stco.entries) {
         entry = file.read<uint32,BE>();
     }
@@ -521,7 +526,7 @@ void read_elst(mp4::box& box, io::stream& file)
     file.gather<BE>(elst.version_and_flags,
                     elst_entry_count);
 
-    elst.entries.resize(elst_entry_count, uninitialized);
+    elst.entries.resize(elst_entry_count);
     if (elst.version() == 1) {
         for (auto&& entry : elst.entries) {
             file.gather<BE>(entry.segment_duration,
@@ -587,7 +592,7 @@ void read_ilst(mp4::box& box, io::stream& file)
         }
 
         file.seek(item_end_pos);
-        ilst.append(std::move(item));
+        ilst.push_back(std::move(item));
     }
 }
 
@@ -777,7 +782,7 @@ void read_tfra(mp4::box& box, io::stream& file)
                     tfra_entry_sizes,
                     tfra_entry_count);
 
-    tfra.entries.resize(tfra_entry_count, uninitialized);
+    tfra.entries.resize(tfra_entry_count);
     for (auto&& entry : tfra.entries) {
         if (tfra.version() == 1) {
             file.gather<BE>(entry.time,
@@ -815,7 +820,7 @@ void read_sidx(mp4::box& box, io::stream& file)
                         sidx_entry_count);
     }
 
-    sidx.entries.resize(sidx_entry_count, uninitialized);
+    sidx.entries.resize(sidx_entry_count);
     for (auto&& entry : sidx.entries) {
         uint32 tmp[3];
         file.gather<BE>(tmp);
@@ -1031,7 +1036,7 @@ void read_container(mp4::box& parent, io::stream& file, mp4::box_checker check)
 
     for (auto pos = file.tell(); pos < container_end; ) {
         auto const header = mp4::read_box_header(file);
-        auto&& box = *parent.children.insert(*new mp4::box{header, &parent});
+        auto&& box = add_child(parent, header);
 
         auto query = mp4::box_path{parent.type(), header.type};
         auto found = mp4::box_readers.find(query);
@@ -1105,7 +1110,6 @@ box::~box()
     if (destroy_) {
         destroy_(&box_data);
     }
-    children.clear_and_dispose(std::default_delete<mp4::box>());
 }
 
 root_box::root_box(io::stream& file) :
@@ -1134,12 +1138,15 @@ root_box::root_box(io::stream& file) :
 #if 0
 static void print_box(mp4::box const& box, int const indent)
 {
+    char name[4];
+    io::store<BE>(name, box.type());
+
     std::fprintf(stderr,
                  "\n"
-                 "%*s[" "\033[00;35m" "%s"   "\033[00;00m"
+                 "%*s[" "\033[00;35m" "%.4s" "\033[00;00m"
                  "] @"  "\033[00;34m" "%llu" "\033[00;00m"
                  ":"    "\033[00;32m" "%llu" "\033[00;00m",
-                 indent, "| ", fourcc_string(box.type()).s,
+                 indent, "| ", name,
                  box.start_position(),
                  box.end_position());
 
@@ -1150,7 +1157,7 @@ static void print_box(mp4::box const& box, int const indent)
 
 void root_box::print() const
 {
-    std::fputs("\n[MP4] root = {", stderr);
+    std::fputs("\n[MP4] {", stderr);
     for (auto const& child : children) {
         print_box(child, 4);
     }

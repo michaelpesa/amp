@@ -126,7 +126,7 @@ inline void AudioToolBar::startPlaybackAtTrack(std::size_t const index)
 void AudioToolBar::play()
 {
     try {
-        switch (player.get_state()) {
+        switch (player.state()) {
         case audio::player_state::stopped:
             Q_EMIT aboutToStart();
             player.stop();
@@ -210,15 +210,15 @@ inline void AudioToolBar::updatePlayerState()
     stop_action->setDisabled(isStopped());
     seek_bar->setDisabled(isStopped());
 
-    Q_EMIT playerStateChanged(player.get_state());
+    Q_EMIT playerStateChanged(player.state());
 }
 
 void AudioToolBar::timerEvent(QTimerEvent*)
 {
-    Q_EMIT positionChanged(player.get_position());
+    Q_EMIT positionChanged(player.position());
 
     if (++bit_rate_refresh == 5) {
-        Q_EMIT bitRateChanged(player.get_bit_rate());
+        Q_EMIT bitRateChanged(player.bit_rate());
         bit_rate_refresh = 0;
     }
 }
@@ -236,8 +236,8 @@ void AudioToolBar::customEvent(QEvent* const ev)
             track_change_index = playlist->next(index);
             player.insert_track(playlist->at(track_change_index));
 
-            Q_EMIT bitRateChanged(player.get_bit_rate());
-            Q_EMIT positionChanged(player.get_position());
+            Q_EMIT bitRateChanged(player.bit_rate());
+            Q_EMIT positionChanged(player.position());
             Q_EMIT playerTrackChanged(playlist->at(index));
             break;
         }

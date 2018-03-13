@@ -28,6 +28,7 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 
 namespace amp {
@@ -37,31 +38,17 @@ template<typename T>
 class array
 {
 public:
+    static_assert(is_pod_v<T>, "");
+
     using iterator       = T*;
     using const_iterator = T const*;
 
     array() = default;
 
-    array(array const& x)
-    {
-        static_assert(is_nothrow_copy_constructible_v<T>, "");
-
-        if (AMP_LIKELY(!x.empty())) {
-            resize_impl(x.size());
-            std::uninitialized_copy(x.begin(), x.end(), begin());
-        }
-    }
-
     array(array&& x) noexcept :
         buf_{std::exchange(x.buf_, nullptr)},
         len_{std::exchange(x.len_, 0)}
     {}
-
-    array& operator=(array const& x) &
-    {
-        array{x}.swap(*this);
-        return *this;
-    }
 
     array& operator=(array&& x) & noexcept
     {
@@ -71,17 +58,12 @@ public:
 
     ~array()
     {
-        auto const last = end();
-        for (auto first = begin(); first != last; ++first) {
-            first->~T();
-        }
         std::free(buf_);
     }
 
     void swap(array& x) noexcept
     {
         using std::swap;
-
         swap(buf_, x.buf_);
         swap(len_, x.len_);
     }
@@ -128,62 +110,27 @@ public:
     T const& back() const noexcept
     { return data()[size() - 1]; }
 
-    void resize(uint32 n)
-    {
-        static_assert(is_nothrow_default_constructible_v<T>, "");
-
-        if (AMP_LIKELY(n != 0)) {
-            resize_impl(n);
-            while (n-- != 0) {
-                ::new(static_cast<void*>(data() + n)) T();
-            }
-        }
-    }
-
-    void resize(uint32 const n, uninitialized_t)
+    void resize(uint32 const n)
     {
         static_assert(is_trivially_constructible_v<T>, "");
 
         if (AMP_LIKELY(n != 0)) {
-            resize_impl(n);
+            buf_ = static_cast<T*>(std::malloc(n * sizeof(T)));
+            if (AMP_UNLIKELY(buf_ == nullptr)) {
+                raise_bad_alloc();
+            }
+            len_ = n;
         }
     }
 
     void assign(io::stream& file, uint32 const n)
     {
-        resize(n, uninitialized);
+        resize(n);
         file.read(reinterpret_cast<uchar*>(data()), n * sizeof(T));
         std::transform(begin(), end(), begin(), net::to_host<BE>);
     }
 
-    template<typename U>
-    void append(U&& u)
-    {
-        static_assert(is_nothrow_assignable_v<T, U>, "");
-
-        auto const tmp = std::realloc(buf_, (size() + 1) * sizeof(T));
-        if (AMP_UNLIKELY(tmp == nullptr)) {
-            raise_bad_alloc();
-        }
-
-        buf_ = static_cast<T*>(tmp);
-        len_ = size() + 1;
-        ::new(static_cast<void*>(end() - 1)) T(std::forward<U>(u));
-    }
-
 private:
-    void resize_impl(uint32 const n)
-    {
-        AMP_ASSERT(buf_ == nullptr);
-        AMP_ASSERT(n > 0);
-
-        buf_ = static_cast<T*>(std::malloc(n * sizeof(T)));
-        if (AMP_UNLIKELY(buf_ == nullptr)) {
-            raise_bad_alloc();
-        }
-        len_ = n;
-    }
-
     T*     buf_{};
     uint32 len_{};
 };
@@ -426,7 +373,7 @@ struct ilst_entry
     { return {reinterpret_cast<char const*>(data.data()), data.size()}; }
 };
 
-using ilst_box_data = mp4::array<ilst_entry>;
+using ilst_box_data = std::vector<ilst_entry>;
 
 struct chpl_box_data : full_box_data
 {
@@ -438,7 +385,7 @@ struct chpl_box_data : full_box_data
         u8string title;
     };
 
-    mp4::array<entry_type> entries;
+    std::vector<entry_type> entries;
 };
 
 struct mehd_box_data : full_box_data
