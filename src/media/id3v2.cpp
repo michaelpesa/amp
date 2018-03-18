@@ -14,17 +14,14 @@
 #include <amp/media/dictionary.hpp>
 #include <amp/media/image.hpp>
 #include <amp/media/tags.hpp>
-#include <amp/net/endian.hpp>
 #include <amp/optional.hpp>
 #include <amp/stddef.hpp>
 #include <amp/string.hpp>
 #include <amp/u8string.hpp>
 #include <amp/utility.hpp>
 
-#include <cinttypes>
-#include <cstdio>
 #include <string_view>
-#include <type_traits>
+#include <utility>
 
 
 namespace amp {
@@ -188,7 +185,7 @@ constexpr uint32 unsynchsafe(uint32 const x) noexcept
          | ((x & 0x7f000000) >> 3);
 }
 
-constexpr uint32 load_uint24BE(uint8 const* const p) noexcept
+constexpr uint32 load_uint24be(uint8 const* const p) noexcept
 {
     return (uint32{p[0]} << 16) | (uint32{p[1]} << 8) | p[2];
 }
@@ -251,8 +248,8 @@ struct frame_header
         case 0:
             uint8 buf[6];
             r.read(buf);
-            id = load_uint24BE(&buf[0]);
-            size = load_uint24BE(&buf[3]);
+            id = load_uint24be(&buf[0]);
+            size = load_uint24be(&buf[3]);
             flags = 0;
             break;
         default:
@@ -424,29 +421,6 @@ private:
 };
 
 
-void read_tipl_frame(uint32 const id, io::reader r, media::dictionary& tags)
-{
-    auto const enc = read_string_encoding(r);
-    while (auto key = read_string(r, enc)) {
-        if (id == "TMCL"_4cc) {
-            key = u8format("performer:%s", key.c_str());
-        }
-        else if (stricmpeq(key, "engineer")) {
-            key = u8string::from_utf8_unchecked(tags::engineer);
-        }
-        else if (stricmpeq(key, "producer")) {
-            key = u8string::from_utf8_unchecked(tags::producer);
-        }
-        else if (stricmpeq(key, "mix")) {
-            key = u8string::from_utf8_unchecked(tags::mixer);
-        }
-        else {
-            key = u8format("involved:%s", key.c_str());
-        }
-        tags.emplace(std::move(key), read_string(r, enc));
-    }
-}
-
 void read_text_frame(uint32 const id, io::reader r, media::dictionary& tags)
 {
     auto const enc = read_string_encoding(r);
@@ -455,9 +429,9 @@ void read_text_frame(uint32 const id, io::reader r, media::dictionary& tags)
     if (id == "TXXX"_4cc) {
         key = tags::map_common_key(read_string(r, enc));
     }
-    else {
+    else if (id != "TIPL"_4cc && id != "TMCL"_4cc) {
         auto found = id3v2::text_frame_map.find(id);
-        if (found != id3v2::text_frame_map.cend()) {
+        if (found != id3v2::text_frame_map.end()) {
             key = u8string::from_utf8_unchecked(found->second);
         }
         else {
@@ -465,15 +439,33 @@ void read_text_frame(uint32 const id, io::reader r, media::dictionary& tags)
         }
     }
 
-    while (auto v = read_string(r, enc)) {
-        if (id == "TCON"_4cc) {
-            auto const s = v.c_str() + (v[0] == '(');
-            uint8 index;
-            if (std::sscanf(s, "%" SCNu8, &index) == 1) {
-                v = id3v1::get_genre_name(index);
+    while (auto value = read_string(r, enc)) {
+        if (id == "TIPL"_4cc || id == "TMCL"_4cc) {
+            if (id == "TMCL"_4cc) {
+                key = u8format("performer:%s", value.c_str());
             }
+            else if (stricmpeq(value.c_str(), "engineer")) {
+                key = u8string::from_utf8_unchecked(tags::engineer);
+            }
+            else if (stricmpeq(value.c_str(), "producer")) {
+                key = u8string::from_utf8_unchecked(tags::producer);
+            }
+            else if (stricmpeq(value.c_str(), "mix")) {
+                key = u8string::from_utf8_unchecked(tags::mixer);
+            }
+            else {
+                key = u8format("involved:%s", value.c_str());
+            }
+            value = read_string(r, enc);
         }
-        tags.emplace(key, std::move(v));
+        else if (id == "TCON"_4cc) {
+            auto index = static_cast<uint8>(value[0]);
+            if (index == '(') {
+                index = static_cast<uint8>(value[1]);
+            }
+            value = id3v1::get_genre_name(index);
+        }
+        tags.emplace(key, std::move(value));
     }
 }
 
@@ -524,7 +516,7 @@ bool read_apic_frame(id3v2::header const& header, io::buffer& data,
         dest.set_mime_type(read_string(r));
     }
     else {
-        auto const image_format = load_uint24BE(r.read_n(3));
+        auto const image_format = load_uint24be(r.read_n(3));
         auto const mime_type = (image_format == "\0JPG"_4cc) ? "image/jpeg"
                              : (image_format == "\0PNG"_4cc) ? "image/png"
                              : nullptr;
@@ -570,28 +562,20 @@ void read(io::stream& file, media::dictionary& dict)
         id3v2::frame_parser parse{file, *header};
         io::buffer data;
 
-        while (auto id = parse(data)) {
-            switch (id) {
-            case "COMM"_4cc:
+        while (auto const id = parse(data)) {
+            if (id == "COMM"_4cc) {
                 id3v2::read_comm_frame(data, dict);
-                break;
-            case "USLT"_4cc:
+            }
+            else if (id == "USLT"_4cc) {
                 id3v2::read_uslt_frame(data, dict);
-                break;
-            case "TIPL"_4cc:
-            case "TMCL"_4cc:
-                id3v2::read_tipl_frame(id, data, dict);
-                break;
-            default:
-                if ((id >> 24) == 'T') {
-                    id3v2::read_text_frame(id, data, dict);
-                }
-                else if ((id >> 24) == 'W') {
-                    id3v2::read_url_frame(id, data, dict);
-                }
+            }
+            else if ((id >> 24) == 'T') {
+                id3v2::read_text_frame(id, data, dict);
+            }
+            else if ((id >> 24) == 'W') {
+                id3v2::read_url_frame(id, data, dict);
             }
         }
-
         dict.emplace(tags::tag_type, u8format("ID3v2.%u", header->version));
     }
 }
@@ -604,7 +588,7 @@ media::image find_image(io::stream& file, media::image::type const type)
         id3v2::frame_parser parse{file, *header};
         io::buffer data;
 
-        while (auto id = parse(data)) {
+        while (auto const id = parse(data)) {
             if (id == "APIC"_4cc) {
                 if (id3v2::read_apic_frame(*header, data, type, image)) {
                     break;

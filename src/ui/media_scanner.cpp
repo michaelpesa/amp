@@ -41,15 +41,15 @@ inline auto openTagReader(net::uri const& location)
     return audio::input::resolve(location, audio::metadata);
 }
 
-void scanDirectory(u8string const& directory, std::vector<net::uri>& work)
+void scanDirectory(u8string const& directory, std::vector<net::uri>& uris)
 {
     for (auto&& path : fs::directory_range{directory}) {
         auto const type = fs::status(path).type();
         if (type == fs::file_type::regular && audio::have_input_for(path)) {
-            work.push_back(net::uri::from_file_path(path));
+            uris.push_back(net::uri::from_file_path(path));
         }
         else if (type == fs::file_type::directory) {
-            scanDirectory(path, work);
+            scanDirectory(path, uris);
         }
     }
 }
@@ -220,48 +220,48 @@ void MediaScanner::cancel()
     cancel_flag_.store(false, std::memory_order_relaxed);
 }
 
-void MediaScanner::run(std::vector<net::uri> work, u8string directory)
+void MediaScanner::run(std::vector<net::uri> uris, u8string directory)
 {
     cancel();
     errors_.clear();
 
     thread_ = std::thread([
         this,
-        work(std::move(work)),
+        uris(std::move(uris)),
         directory(std::move(directory))
     ]() mutable {
         if (!directory.empty()) {
-            scanDirectory(directory, work);
+            scanDirectory(directory, uris);
         }
-        Q_EMIT progressRangeChanged(0, static_cast<int>(work.size()));
+        Q_EMIT progressRangeChanged(0, static_cast<int>(uris.size()));
 
-        for (auto const i : xrange(work.size())) {
+        for (auto const i : xrange(uris.size())) {
             if (cancel_flag_.load(std::memory_order_relaxed)) {
                 Q_EMIT canceled();
                 break;
             }
 
-            auto const& location = work[i];
-            auto const location_text = [&]{
+            auto const& location = uris[i];
+            auto const progress_text = [&]{
                 if (location.scheme() == "file") {
                     return to_qstring(fs::filename(location.get_file_path()));
                 }
                 return to_qstring(location.data(), location.size());
             }();
 
-            Q_EMIT progressTextChanged(location_text);
+            Q_EMIT progressTextChanged(progress_text);
             try {
                 loadTracks(location);
             }
             catch (std::exception const& ex) {
                 errors_.push_back(tr("Failed to load \"%1\": %2")
-                                  .arg(location_text)
+                                  .arg(progress_text)
                                   .arg(to_qstring(ex.what())));
             }
             Q_EMIT progressValueChanged(static_cast<int>(i));
         }
 
-        Q_EMIT progressValueChanged(static_cast<int>(work.size()));
+        Q_EMIT progressValueChanged(static_cast<int>(uris.size()));
         Q_EMIT finished();
     });
 }

@@ -12,7 +12,6 @@
 #include <amp/audio/input.hpp>
 #include <amp/bitops.hpp>
 #include <amp/cxp/map.hpp>
-#include <amp/cxp/string.hpp>
 #include <amp/error.hpp>
 #include <amp/io/buffer.hpp>
 #include <amp/io/memory.hpp>
@@ -44,6 +43,9 @@ namespace {
 
 using namespace wave::literals;
 using wave::guid;
+
+// ASF often uses a time scale of one hundred nanoseconds.
+constexpr uint64 HNS = 10000000;
 
 // ---------------------------------------------------------------------------
 // Top-level object GUIDs
@@ -110,7 +112,7 @@ constexpr auto guid_audio_spread
 
 using std::string_view;
 
-constexpr cxp::map<string_view, string_view, 45, stricmp_less> key_mapping {{
+constexpr cxp::map<char const*, string_view, 45, stricmp_less> key_mapping {{
     { "MusicBrainz/Album Artist Id",  tags::mb_album_artist_id  },
     { "MusicBrainz/Album Id",         tags::mb_album_id         },
     { "MusicBrainz/Artist Id",        tags::mb_artist_id        },
@@ -159,23 +161,23 @@ constexpr cxp::map<string_view, string_view, 45, stricmp_less> key_mapping {{
 }};
 static_assert(cxp::is_sorted(asf::key_mapping), "");
 
-inline u8string to_media_key(u8string key)
+inline u8string to_media_key(u8string const& key)
 {
-    auto found = asf::key_mapping.find(key);
+    auto found = asf::key_mapping.find(key.c_str());
     if (found != asf::key_mapping.end()) {
-        key = u8string::from_utf8_unchecked(found->second);
+        return u8string::from_utf8_unchecked(found->second);
     }
-    else {
-        key = tags::map_common_key(key);
-    }
-    return key;
+    return tags::map_common_key(key);
 }
 
 
 u8string load_string(void const* const buf, std::size_t const bytes)
 {
-    auto const str = static_cast<char16 const*>(buf);
-    return u8string::from_utf16le(str, cxp::strlen(str, bytes / 2));
+    if (bytes > 2) {
+        auto const str = static_cast<char16 const*>(buf);
+        return u8string::from_utf16le(str, (bytes / 2) - 1);
+    }
+    return {};
 }
 
 u8string read_string(io::stream& file, std::size_t bytes, io::buffer& tmp)
@@ -188,75 +190,6 @@ u8string read_string(io::stream& file, std::size_t bytes, io::buffer& tmp)
     return {};
 }
 
-
-struct object
-{
-    guid   id;
-    uint64 size;
-
-    static asf::object read(io::stream& file)
-    {
-        asf::object object;
-        file.gather<LE>(object.id, object.size);
-
-        if (AMP_UNLIKELY(object.size < 24)) {
-            raise(errc::invalid_data_format,
-                  "ASF object size must be at least 24 bytes");
-        }
-        return object;
-    }
-};
-
-struct header_object
-{
-    explicit header_object(io::stream& file)
-    {
-        asf::object object;
-        uint8 reserved[2];
-        file.gather<LE>(object.id, object.size, subobject_count, reserved);
-
-        if (object.id != asf::guid_header_object || reserved[1] != 0x02) {
-            raise(errc::invalid_data_format, "invalid ASF header object");
-        }
-    }
-
-    uint32 subobject_count;
-};
-
-struct file_properties_object
-{
-    guid   file_id;
-    uint64 file_size;
-    uint64 creation_date;
-    uint64 packet_count;
-    uint64 play_duration;
-    uint64 send_duration;
-    uint64 preroll;
-    uint32 flags;
-    uint32 min_packet_size;
-    uint32 max_packet_size;
-    uint32 max_bit_rate;
-
-    void read(io::stream& file, uint64 const object_size)
-    {
-        if (object_size < 104) {
-            raise(errc::invalid_data_format,
-                  "ASF File Properties Object is too small");
-        }
-
-        file.gather<LE>(file_id,
-                        file_size,
-                        creation_date,
-                        packet_count,
-                        play_duration,
-                        send_duration,
-                        preroll,
-                        flags,
-                        min_packet_size,
-                        max_packet_size,
-                        max_bit_rate);
-    }
-};
 
 struct content_description_object
 {
@@ -280,50 +213,22 @@ struct content_description_object
     u8string rating;
 };
 
-struct marker_object
+struct marker
 {
-    struct entry_type
-    {
-        uint64   byte_offset;
-        uint64   presentation_time;
-        uint32   send_time;
-        uint32   flags;
-        u8string description;
-    };
-
-    void parse(io::stream& file)
-    {
-        uint32 entry_count;
-        uint16 name_length;
-
-        file.gather<LE>(io::ignore<16>,         // reserved1
-                        entry_count,
-                        io::ignore<2>,          // reserved2
-                        name_length);
-
-        io::buffer tmp;
-        name = asf::read_string(file, name_length, tmp);
-
-        entries.resize(entry_count);
-        for (auto&& entry : entries) {
-            uint16 entry_length;
-            uint32 descr_length;
-
-            file.gather<LE>(entry.byte_offset,
-                            entry.presentation_time,
-                            entry_length,
-                            entry.send_time,
-                            entry.flags,
-                            descr_length);
-
-            entry.description = asf::read_string(file, descr_length * 2, tmp);
-        }
-    }
-
-    u8string                name;
-    std::vector<entry_type> entries;
+    uint64 pts;
+    u8string title;
 };
 
+struct stream
+{
+    io::buffer ts_data;
+    io::buffer ec_data;
+    uint64     start_time{};
+    uint64     end_time{};
+    uint32     bit_rate{};
+    bool       is_audio{};
+    bool       has_spread_ec{};
+};
 
 struct attribute
 {
@@ -364,59 +269,12 @@ struct attribute
 };
 
 
-void read_metadata_object(io::stream& file,
-                          std::vector<attribute>& dest)
-{
-    auto n = file.read<uint16,LE>();
-    dest.reserve(dest.size() + n);
-
-    io::buffer tmp;
-    while (n-- != 0) {
-        attribute attr;
-        uint16 name_length;
-        uint32 data_length;
-
-        file.gather<LE>(io::ignore<2>,      // language_list_index
-                        attr.stream_number,
-                        name_length,
-                        attr.type,
-                        data_length);
-
-        attr.name = asf::read_string(file, name_length, tmp);
-        attr.data.assign(file, data_length);
-        dest.push_back(std::move(attr));
-    }
-}
-
-void read_extended_content_description_object(io::stream& file,
-                                              std::vector<attribute>& dest)
-{
-    auto n = file.read<uint16,LE>();
-    dest.reserve(dest.size() + n);
-
-    io::buffer tmp;
-    while (n-- != 0) {
-        attribute attr;
-        attr.stream_number = 0;
-        attr.name = asf::read_string(file, file.read<uint16,LE>(), tmp);
-
-        uint16 data_length;
-        file.gather<LE>(attr.type, data_length);
-        attr.data.assign(file, data_length);
-        dest.push_back(std::move(attr));
-    }
-}
-
-
 class descrambler
 {
 public:
-    void parse(io::reader r)
+    void init(io::reader r)
     {
-        r.gather<LE>(io::alias<uint8>(span),
-                     io::alias<uint16>(virtual_packet_length),
-                     io::alias<uint16>(virtual_chunk_length));
-
+        r.gather<LE>(span, virtual_packet_length, virtual_chunk_length);
         if (span > 1) {
             if ((virtual_chunk_length == 0)                         ||
                 (virtual_packet_length / virtual_chunk_length <= 1) ||
@@ -439,9 +297,9 @@ public:
             raise(errc::invalid_argument, "invalid packet size");
         }
 
-        auto const n = virtual_chunk_length;
-        auto const h = virtual_packet_length / n;
-        auto const w = span;
+        auto const n = std::size_t{virtual_chunk_length};
+        auto const h = std::size_t{virtual_packet_length} / n;
+        auto const w = std::size_t{span};
 
         for (auto const i : xrange(h)) {
             for (auto const j : xrange(w)) {
@@ -454,9 +312,9 @@ public:
 
 private:
     io::buffer tmp;
-    uint32     virtual_packet_length{};
-    uint32     virtual_chunk_length{};
-    uint32     span{};
+    uint16 virtual_packet_length{};
+    uint16 virtual_chunk_length{};
+    uint8 span{};
 };
 
 
@@ -498,18 +356,6 @@ inline uint32 read_coded(io::reader& r, uint32 const size) noexcept
 }
 
 
-struct stream
-{
-    io::buffer ts_data;
-    io::buffer ec_data;
-    uint64     start_time{};
-    uint64     end_time{};
-    uint32     bit_rate{};
-    bool       is_audio{};
-    bool       has_spread_ec{};
-};
-
-
 class demuxer final :
     public audio::basic_demuxer<asf::demuxer>
 {
@@ -527,8 +373,11 @@ public:
 
 private:
     void find_first_audio_stream(asf::stream(&)[128]);
-    void parse_stream_properties(asf::stream(&)[128]);
-    void parse_extended_stream_properties(asf::stream(&)[128]);
+    void read_file_properties();
+    void read_marker();
+    void read_metadata(asf::guid const&);
+    void read_stream_properties(asf::stream(&)[128]);
+    void read_extended_stream_properties(asf::stream(&)[128]);
 
     bool feed(io::buffer&);
 
@@ -540,18 +389,21 @@ private:
     bool is_beginning_of_packet(asf::payload_parsing_info const&);
 
     ref_ptr<io::stream>             file;
-    asf::file_properties_object     file_properties;
-    asf::content_description_object content_description;
-    asf::marker_object              marker;
     asf::descrambler                descramble;
-    uint64                          data_start_offset{};
-    uint64                          data_length{};
-    std::vector<asf::attribute>     attributes;
-    std::vector<io::buffer>         packet_queue;
-    io::buffer                      packet_buffer;
+    uint64                          data_object_offset{};
+    uint64                          data_object_length{};
+    uint64                          packet_count{};
     uint64                          packet_number{};
-    uint32                          packet_offset{};
+    uint64                          play_duration{};
+    uint64                          preroll{};
+    uint32                          bytes_per_packet{};
     uint8                           audio_stream_number{};
+    io::buffer                      packet_buffer;
+    std::size_t                     packet_buffer_offset{};
+    std::vector<io::buffer>         packet_queue;
+    std::vector<asf::attribute>     attributes;
+    std::vector<asf::marker>        markers;
+    asf::content_description_object content_description;
 };
 
 
@@ -572,19 +424,18 @@ void demuxer::find_first_audio_stream(asf::stream(&streams)[128])
 found:
     auto&& stream = streams[audio_stream_number];
     if (stream.has_spread_ec) {
-        descramble.parse(stream.ec_data);
+        descramble.init(stream.ec_data);
     }
 
     auto start_time = stream.start_time;
     auto total_time = stream.end_time;
     if (total_time == 0) {
-        total_time  = file_properties.play_duration;
-        total_time -= file_properties.preroll * (10000000 / 1000);
+        total_time = play_duration - preroll;
     }
     total_time -= start_time;
 
-    start_time = muldiv(start_time, format.sample_rate, 10000000);
-    total_time = muldiv(total_time, format.sample_rate, 10000000);
+    start_time = muldiv(start_time, format.sample_rate, HNS);
+    total_time = muldiv(total_time, format.sample_rate, HNS);
 
     Base::set_total_frames(total_time);
     Base::set_encoder_delay(numeric_cast<uint32>(start_time));
@@ -594,13 +445,91 @@ found:
         average_bit_rate = format.bit_rate;
     }
     if (average_bit_rate == 0) {
-        average_bit_rate = static_cast<uint32>(muldiv(data_length,
+        average_bit_rate = static_cast<uint32>(muldiv(data_object_length,
                                                       format.sample_rate * 8,
                                                       total_time));
     }
 }
 
-void demuxer::parse_stream_properties(asf::stream(&streams)[128])
+void demuxer::read_file_properties()
+{
+    file->gather<LE>(io::ignore<16>,    // file_id
+                     io::ignore<8>,     // file_size
+                     io::ignore<8>,     // creation_date
+                     packet_count,
+                     play_duration,
+                     io::ignore<8>,     // send_duration
+                     preroll,
+                     io::ignore<4>,     // flags
+                     io::ignore<4>,     // min_packet_size
+                     bytes_per_packet,
+                     io::ignore<4>);    // max_bit_rate
+
+    // Convert preroll time scale
+    preroll *= (HNS / 1000);
+}
+
+void demuxer::read_marker()
+{
+    uint32 entry_count;
+    uint16 name_length;
+
+    file->gather<LE>(io::ignore<16>,        // reserved1
+                     entry_count,
+                     io::ignore<2>,         // reserved2
+                     name_length);
+    file->skip(name_length);
+    markers.resize(entry_count);
+
+    io::buffer tmp;
+    for (auto&& entry : markers) {
+        uint32 title_length;
+        file->gather<LE>(io::ignore<8>,     // data_offset
+                         entry.pts,
+                         io::ignore<2>,     // entry_length
+                         io::ignore<4>,     // send_time
+                         io::ignore<4>,     // flags
+                         title_length);
+
+        entry.title = asf::read_string(*file, title_length * 2, tmp);
+    }
+}
+
+void demuxer::read_metadata(asf::guid const& id)
+{
+    auto const ext_content_descr =
+        (id == asf::guid_extended_content_description_object);
+
+    auto const start = attributes.size();
+    auto const count = file->read<uint16,LE>();
+    attributes.resize(start + count);
+
+    for (auto const i : xrange(start, start + count)) {
+        auto& attr = attributes[i];
+        uint16 name_length;
+        uint32 data_length{};
+
+        if (ext_content_descr) {
+            attr.stream_number = 0;
+            file->gather<LE>(name_length);
+        }
+        else {
+            file->gather<LE>(io::ignore<2>,     // language_list_index
+                             attr.stream_number,
+                             name_length,
+                             attr.type,
+                             data_length);
+        }
+        attr.name = asf::read_string(*file, name_length, attr.data);
+
+        if (ext_content_descr) {
+            file->gather<LE>(attr.type, io::alias<uint16>(data_length));
+        }
+        attr.data.assign(*file, data_length);
+    }
+}
+
+void demuxer::read_stream_properties(asf::stream(&streams)[128])
 {
     guid stream_type, ec_type;
     uint32 ts_data_length, ec_data_length;
@@ -621,7 +550,7 @@ void demuxer::parse_stream_properties(asf::stream(&streams)[128])
     s.has_spread_ec = (ec_type == asf::guid_audio_spread);
 }
 
-void demuxer::parse_extended_stream_properties(asf::stream(&streams)[128])
+void demuxer::read_extended_stream_properties(asf::stream(&streams)[128])
 {
     uint64 start_time, end_time;
     uint32 data_bit_rate;
@@ -652,73 +581,79 @@ void demuxer::parse_extended_stream_properties(asf::stream(&streams)[128])
 demuxer::demuxer(ref_ptr<io::stream> s, audio::open_mode const mode) :
     file{std::move(s)}
 {
-    asf::header_object header{*file};
-    asf::stream streams[128];
+    guid   object_id;
+    uint64 object_size;
+
+    file->gather<LE>(object_id,
+                     object_size,
+                     io::ignore<4>,     // subobject_count
+                     io::ignore<2>);    // reserved
+
+    if (object_id != asf::guid_header_object) {
+        raise(errc::invalid_data_format, "invalid ASF header object");
+    }
 
     auto const file_length = file->size();
     auto       file_offset = file->tell();
 
+    asf::stream streams[128];
     while ((file_offset + 24) < file_length) {
-        auto const object = asf::object::read(*file);
-        if (object.id == asf::guid_header_extension_object) {
+        file->gather<LE>(object_id, object_size);
+
+        if (object_id == asf::guid_header_extension_object) {
             file_offset += 46;
             file->seek(file_offset);
             continue;
         }
-        else if (object.id == asf::guid_file_properties_object) {
-            file_properties.read(*file, object.size);
+        else if (object_id == asf::guid_file_properties_object) {
+            read_file_properties();
         }
-        else if (object.id == asf::guid_stream_properties_object) {
-            parse_stream_properties(streams);
+        else if (object_id == asf::guid_stream_properties_object) {
+            read_stream_properties(streams);
         }
-        else if (object.id == asf::guid_extended_stream_properties_object) {
-            parse_extended_stream_properties(streams);
+        else if (object_id == asf::guid_extended_stream_properties_object) {
+            read_extended_stream_properties(streams);
         }
-        else if (object.id == asf::guid_data_object) {
-            data_start_offset = file_offset + 50;
-            data_length       = object.size - 50;
+        else if (object_id == asf::guid_data_object) {
+            data_object_offset = file_offset + 50;
+            data_object_length = object_size - 50;
         }
-        else if (object.id == asf::guid_marker_object) {
+        else if (object_id == asf::guid_marker_object) {
             if (mode & audio::metadata) {
-                marker.parse(*file);
+                read_marker();
             }
         }
-        else if (object.id == asf::guid_content_description_object) {
+        else if (object_id == asf::guid_content_description_object) {
             if (mode & audio::metadata) {
                 content_description.read(*file);
             }
         }
-        else if (object.id == asf::guid_extended_content_description_object) {
+        else if (object_id == asf::guid_metadata_object ||
+                 object_id == asf::guid_metadata_library_object ||
+                 object_id == asf::guid_extended_content_description_object) {
             if (mode & (audio::metadata | audio::pictures)) {
-                read_extended_content_description_object(*file, attributes);
+                read_metadata(object_id);
             }
         }
-        else if (object.id == asf::guid_metadata_object ||
-                 object.id == asf::guid_metadata_library_object) {
-            if (mode & (audio::metadata | audio::pictures)) {
-                read_metadata_object(*file, attributes);
-            }
-        }
-        else if (object.id == asf::guid_advanced_content_encryption_object ||
-                 object.id == asf::guid_extended_content_encryption_object ||
-                 object.id == asf::guid_content_encryption_object) {
+        else if (object_id == asf::guid_advanced_content_encryption_object ||
+                 object_id == asf::guid_extended_content_encryption_object ||
+                 object_id == asf::guid_content_encryption_object) {
             raise(errc::not_implemented,
-                  "ASF file contains DRM-protected content");
+                  "ASF: file contains DRM-protected content");
         }
 
-        file_offset += object.size;
+        file_offset += object_size;
         file->seek(file_offset);
     }
 
     if (mode & (audio::playback | audio::metadata)) {
         find_first_audio_stream(streams);
         if (mode & audio::playback) {
-            file->seek(data_start_offset);
+            file->seek(data_object_offset);
         }
         if (mode & audio::metadata) {
-            auto const preroll = file_properties.preroll * (10000000 / 1000);
-            for (auto&& entry : marker.entries) {
-                entry.presentation_time -= preroll;
+            for (auto&& entry : markers) {
+                entry.pts -= preroll;
             }
         }
     }
@@ -751,28 +686,11 @@ auto demuxer::read_payload_parsing_info()
     info.duration       = r.read_unchecked<uint16,LE>();
     info.payload_flags  = (size3 ? r.read_unchecked<uint8>() : uint8{0});
 
-    auto const min_packet_size = file_properties.min_packet_size;
-    auto const max_packet_size = file_properties.max_packet_size;
-
     if (info.packet_length == 0) {
-        info.packet_length = min_packet_size;
+        info.packet_length = bytes_per_packet;
     }
-    else if (info.packet_length < min_packet_size) {
-        info.padding_length += min_packet_size - info.packet_length;
-        info.packet_length   = min_packet_size;
-    }
-
     if (info.packet_length < info.padding_length) {
-        raise(errc::out_of_bounds,
-              "ASF packet length (%" PRIu32 " bytes) exceeds "
-              "padding length (%" PRIu32 " bytes)",
-              info.packet_length, info.padding_length);
-    }
-    if (info.packet_length > max_packet_size) {
-        raise(errc::out_of_bounds,
-              "ASF packet length (%" PRIu32 " bytes) exceeds "
-              "max packet length (%" PRIu32 " bytes)",
-              info.packet_length, max_packet_size);
+        raise(errc::out_of_bounds, "ASF: invalid packet length");
     }
     return info;
 }
@@ -806,9 +724,9 @@ auto demuxer::read_payload_length(asf::payload_parsing_info const& info)
 }
 
 void demuxer::demux_payloads(asf::payload_parsing_info const& info,
-                             uint64 const packet_start_offset)
+                             uint64 const packet_offset)
 {
-    auto const packet_end_offset = packet_start_offset + info.packet_length;
+    auto const packet_end_offset = packet_offset + info.packet_length;
     auto const multiple_payloads = (info.length_type_flags & 0x1);
     auto payload_count = multiple_payloads ? (info.payload_flags & 0x3f) : 1;
 
@@ -820,9 +738,7 @@ void demuxer::demux_payloads(asf::payload_parsing_info const& info,
         uint8  presentation_time_delta{};
 
         if (head.replicated_data_length >= 8) {
-            file->gather<LE>(media_object_size,
-                             presentation_time);
-
+            file->gather<LE>(media_object_size, presentation_time);
             if (head.replicated_data_length > 8) {
                 file->skip(head.replicated_data_length - 8);
             }
@@ -831,9 +747,7 @@ void demuxer::demux_payloads(asf::payload_parsing_info const& info,
             presentation_time_delta = file->read<uint8>();
         }
         else if (head.replicated_data_length != 0) {
-            raise(errc::failure,
-                  "invalid replicated data length: %" PRIu32,
-                  head.replicated_data_length);
+            raise(errc::failure, "ASF: invalid packet payload");
         }
 
         uint32 payload_length;
@@ -841,7 +755,7 @@ void demuxer::demux_payloads(asf::payload_parsing_info const& info,
             payload_length = read_payload_length(info);
         }
         else {
-            auto const end  = packet_start_offset + info.packet_length;
+            auto const end  = packet_offset + info.packet_length;
             payload_length  = static_cast<uint32>(end - file->tell());
             payload_length -= info.padding_length;
         }
@@ -855,22 +769,20 @@ void demuxer::demux_payloads(asf::payload_parsing_info const& info,
             media_object_size = payload_length;
         }
 
-        if (packet_offset != head.offset_into_media_object) {
-            raise(errc::failure, "invalid ASF media object offset");
-        }
-        if ((packet_offset + payload_length) > media_object_size) {
-            raise(errc::out_of_bounds, "oversized ASF media object payload");
+        if ((packet_buffer_offset != head.offset_into_media_object) ||
+            (packet_buffer_offset + payload_length > media_object_size)) {
+            raise(errc::failure, "ASF: invalid packet payload");
         }
 
         if (packet_buffer.empty()) {
             packet_buffer.resize(media_object_size, uninitialized);
         }
 
-        file->read(&packet_buffer[packet_offset], payload_length);
-        packet_offset += payload_length;
+        file->read(&packet_buffer[packet_buffer_offset], payload_length);
+        packet_buffer_offset += payload_length;
 
-        if (packet_offset == packet_buffer.size()) {
-            packet_offset = 0;
+        if (packet_buffer_offset == packet_buffer.size()) {
+            packet_buffer_offset = 0;
             packet_queue.push_back(std::move(packet_buffer));
             if (info.duration != 0) {
                 instant_bit_rate = muldiv(media_object_size,
@@ -906,72 +818,60 @@ bool demuxer::is_beginning_of_packet(asf::payload_parsing_info const& info)
         if (head.stream_number == audio_stream_number) {
             return (head.offset_into_media_object == 0);
         }
-
         if (multiple_payloads) {
             file->skip(head.replicated_data_length);
             file->skip(read_payload_length(info));
         }
     }
-
     return false;
 }
 
 bool demuxer::feed(io::buffer& dest)
 {
     while (packet_queue.empty()) {
-        if (AMP_UNLIKELY(packet_number >= file_properties.packet_count)) {
+        if (AMP_UNLIKELY(packet_number >= packet_count)) {
             return false;
         }
-
-        auto const packet_start_offset = file->tell();
+        auto const packet_offset = file->tell();
         auto const info = read_payload_parsing_info();
-        demux_payloads(info, packet_start_offset);
+        demux_payloads(info, packet_offset);
         ++packet_number;
     }
 
     packet_queue.back().swap(dest);
     packet_queue.pop_back();
-
     descramble(dest);
     return true;
 }
 
 void demuxer::seek(uint64 const target_pts)
 {
-    auto const packet_count = file_properties.packet_count;
-    AMP_ASSERT(packet_count > 0);
-
     auto const sample_rate = format.sample_rate;
-    AMP_ASSERT(sample_rate > 0);
-
-    auto const frames_per_packet = total_frames / packet_count;
-    AMP_ASSERT(frames_per_packet > 0);
-
-    auto const bytes_per_packet = file_properties.min_packet_size;
-    AMP_ASSERT(bytes_per_packet > 0);
+    auto frames_per_packet = total_frames / packet_count;
+    frames_per_packet = std::max(frames_per_packet, uint64{1});
 
     uint64 priming{};
-    uint64 packet_start_offset{};
+    uint64 packet_offset{};
 
     packet_queue.clear();
     packet_buffer.clear();
-    packet_offset = 0;
+    packet_buffer_offset = 0;
     packet_number = target_pts / frames_per_packet;
 
     for (;;) {
         if (packet_number >= packet_count) {
-            packet_start_offset = data_length;
+            packet_offset = data_object_length;
             priming = 0;
             break;
         }
         if (packet_number == 0) {
-            packet_start_offset = 0;
+            packet_offset = 0;
             priming = target_pts;
             break;
         }
 
-        packet_start_offset = packet_number * bytes_per_packet;
-        file->seek(data_start_offset + packet_start_offset);
+        packet_offset = packet_number * bytes_per_packet;
+        file->seek(data_object_offset + packet_offset);
 
         auto const info = read_payload_parsing_info();
         auto const pts = muldiv(info.send_time, sample_rate, 1000);
@@ -982,21 +882,16 @@ void demuxer::seek(uint64 const target_pts)
                 break;
             }
             --packet_number;
-            continue;
         }
-
-        auto step = (pts - target_pts) / (frames_per_packet * 2);
-        step = std::max(step, uint64{1});
-
-        if (step > packet_number) {
-            packet_start_offset = 0;
-            priming = target_pts;
-            break;
+        else {
+            auto step = (pts - target_pts) / (frames_per_packet * 2);
+            step = std::max(step, uint64{1});
+            step = std::min(step, packet_number);
+            packet_number -= step;
         }
-        packet_number -= step;
     }
 
-    file->seek(data_start_offset + packet_start_offset);
+    file->seek(data_object_offset + packet_offset);
     Base::set_seek_target_and_offset(target_pts, priming);
 }
 
@@ -1038,18 +933,17 @@ auto demuxer::get_info(uint32 const number)
 
     info.frames = Base::total_frames;
     if (number != 0) {
-        AMP_ASSERT(number <= marker.entries.size());
-        info.start_offset = muldiv(marker.entries[number - 1].presentation_time,
-                                   info.sample_rate, 10000000);
-
-        if (number != marker.entries.size()) {
-            info.frames = muldiv(marker.entries[number].presentation_time,
-                                 info.sample_rate, 10000000);
+        AMP_ASSERT(number <= markers.size());
+        if (number != markers.size()) {
+            info.frames = muldiv(markers[number].pts, info.sample_rate, HNS);
         }
+
+        auto&& entry = markers[number - 1];
+        info.start_offset = muldiv(entry.pts, info.sample_rate, HNS);
         info.frames -= info.start_offset;
 
-        if (auto&& title = marker.entries[number - 1].description) {
-            info.tags.insert_or_assign(tags::title, title);
+        if (!entry.title.empty()) {
+            info.tags.insert_or_assign(tags::title, entry.title);
         }
     }
     return info;
@@ -1083,7 +977,8 @@ auto demuxer::get_image(media::image::type const type)
         auto read_next_string = [&]{
             for (auto pos = 0_sz; (r.remain() - pos) >= 2; pos += 2) {
                 if (io::load<char16>(r.peek() + pos) == u'\0') {
-                    return asf::load_string(r.read_n_unchecked(pos + 2), pos);
+                    pos += 2;
+                    return asf::load_string(r.read_n_unchecked(pos), pos);
                 }
             }
             r.skip_unchecked(r.remain());
@@ -1105,7 +1000,7 @@ auto demuxer::get_image(media::image::type const type)
 
 auto demuxer::get_chapter_count() const noexcept
 {
-    return static_cast<uint32>(marker.entries.size());
+    return static_cast<uint32>(markers.size());
 }
 
 AMP_REGISTER_INPUT(demuxer, "asf", "wm", "wma", "wmv");

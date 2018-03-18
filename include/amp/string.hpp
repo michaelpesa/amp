@@ -25,7 +25,7 @@
 # elif defined(_MSC_VER)
 #  include <string.h>
 # else
-#  include <amp/cxp/char.hpp>
+#  include <cctype>
 # endif
 #endif
 
@@ -42,10 +42,10 @@ AMP_INLINE int stricmp(char const* s1, char const* s2) noexcept
 #elif defined(_MSC_VER)
     return ::_stricmp(s1, s2);
 #else
-    uchar c1, c2;
+    int c1, c2;
     do {
-        c1 = static_cast<uchar>(cxp::tolower(*s1++));
-        c2 = static_cast<uchar>(cxp::tolower(*s2++));
+        c1 = std::tolower(static_cast<uchar>(*s1++));
+        c2 = std::tolower(static_cast<uchar>(*s2++));
     }
     while (c1 != 0 && c1 == c2);
     return c1 - c2;
@@ -66,10 +66,10 @@ AMP_INLINE int stricmp(char const* s1, char const* s2, std::size_t n) noexcept
         return 0;
     }
 
-    uchar c1, c2;
+    int c1, c2;
     do {
-        c1 = static_cast<uchar>(cxp::tolower(*s1++));
-        c2 = static_cast<uchar>(cxp::tolower(*s2++));
+        c1 = static_cast<uchar>(std::tolower(*s1++));
+        c2 = static_cast<uchar>(std::tolower(*s2++));
     }
     while (c1 != 0 && c1 == c2 && --n != 0);
     return c1 - c2;

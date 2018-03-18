@@ -5,8 +5,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-#include <amp/cxp/char.hpp>
-#include <amp/cxp/string.hpp>
 #include <amp/error.hpp>
 #include <amp/io/buffer.hpp>
 #include <amp/io/reader.hpp>
@@ -18,11 +16,9 @@
 #include <amp/string.hpp>
 #include <amp/u8string.hpp>
 
-#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <string_view>
-#include <utility>
 
 
 namespace amp {
@@ -89,16 +85,11 @@ struct item
         r.gather<LE>(size, flags);
         key = reinterpret_cast<char const*>(r.peek());
 
-        auto const max_key_size = std::min(r.remain(), 256_sz);
-        auto const key_size = cxp::strlen(key, max_key_size);
-
-        if (key_size < 2 ||
-            key_size == max_key_size ||
-            !std::all_of(key, key + key_size, cxp::isprint)) {
-            raise(errc::failure, "invalid APETag item key");
+        while (auto const c = r.read<char>()) {
+            if (c < 0x20 || c > 0x7e) {
+                raise(errc::failure, "invalid APE tag key");
+            }
         }
-
-        r.skip_unchecked(key_size + 1);
         value = {reinterpret_cast<char const*>(r.read_n(size)), size};
     }
 

@@ -23,9 +23,7 @@
 #include "media/tags.hpp"
 
 #include <algorithm>
-#include <cinttypes>
 #include <cstddef>
-#include <limits>
 #include <random>
 #include <string_view>
 #include <utility>
@@ -55,61 +53,58 @@ struct playlist_header
 
 auto pack_playlist_(std::vector<media::track> const& tracks)
 {
-    io::buffer buf{sizeof(uint32), uninitialized};
-    io::store<LE>(&buf[0], static_cast<uint32>(tracks.size()));
+    io::buffer buf;
+    auto pos = 0_sz;
 
-    auto grow = [&](uint32 const n) {
-        auto const start = buf.size();
-        buf.grow(n, uninitialized);
-        return buf.data() + start;
+    auto write_size = [&](std::size_t const n) {
+        buf.grow(sizeof(uint32), uninitialized);
+        io::store<LE>(&buf[pos], static_cast<uint32>(n));
+        pos += sizeof(uint32);
     };
 
-    auto save_uri = [&](net::uri const& u) {
-        auto const n = static_cast<uint32>(u.size());
-        auto const dst = grow(n + sizeof(uint32));
-        io::store<LE>(dst, n);
-        std::copy_n(u.data(), n, dst + sizeof(uint32));
+    auto write_data = [&](void const* const p, std::size_t const n) {
+        buf.grow(sizeof(uint32) + n, uninitialized);
+        io::store<LE>(&buf[pos], static_cast<uint32>(n));
+        pos += sizeof(uint32);
+        std::copy_n(static_cast<uchar const*>(p), n, &buf[pos]);
+        pos += n;
     };
 
-    auto save_dictionary = [&](media::dictionary const& d) {
-        io::store<LE>(grow(sizeof(uint32)), static_cast<uint32>(d.size()));
-
-        for (auto&& v : d) {
-            auto const n1 = static_cast<uint32>(v.first.size());
-            auto const n2 = static_cast<uint32>(v.second.size());
-            auto dst = grow(n1 + n2 + (2 * sizeof(uint32)));
-
-            io::store<LE>(dst, n1);
-            dst = std::copy_n(v.first.data(), n1, dst + sizeof(uint32));
-            io::store<LE>(dst, n2);
-            dst = std::copy_n(v.second.data(), n2, dst + sizeof(uint32));
-        }
-    };
-
+    write_size(tracks.size());
     for (auto&& t : tracks) {
-        save_uri(t.location);
-        save_dictionary(t.tags);
-        save_dictionary(t.info);
+        write_data(t.location.data(), t.location.size());
 
-        auto const start = buf.size();
-        auto const extra = sizeof(t.start_offset)
-                         + sizeof(t.frames)
-                         + sizeof(t.sample_rate)
-                         + sizeof(t.channel_layout)
-                         + sizeof(t.chapter);
+        write_size(t.tags.size());
+        for (auto&& v : t.tags) {
+            write_data(v.first.data(), v.first.size());
+            write_data(v.second.data(), v.second.size());
+        }
 
-        buf.grow(extra, uninitialized);
-        io::scatter<LE>(&buf[start],
+        write_size(t.info.size());
+        for (auto&& v : t.info) {
+            write_data(v.first.data(), v.first.size());
+            write_data(v.second.data(), v.second.size());
+        }
+
+        auto const n = sizeof(t.start_offset)
+                     + sizeof(t.frames)
+                     + sizeof(t.sample_rate)
+                     + sizeof(t.channel_layout)
+                     + sizeof(t.chapter);
+
+        buf.grow(n, uninitialized);
+        io::scatter<LE>(&buf[pos],
                         t.start_offset,
                         t.frames,
                         t.sample_rate,
                         t.channel_layout,
                         t.chapter);
+        pos += n;
     }
     return buf;
 }
 
-auto unpack_playlist_(io::reader r)
+std::vector<media::track> unpack_playlist_(io::reader r)
 {
     auto load_dictionary = [&](media::dictionary& d) {
         auto n = r.read<uint32,LE>();
@@ -165,17 +160,23 @@ void save_playlist_(io::stream& file, std::vector<media::track> const& tracks)
     file.write(compressed.data(), compressed_size);
 }
 
-auto load_playlist_(io::stream& file)
+std::vector<media::track> load_playlist_(u8string const& path)
 {
+    if (!fs::exists(path)) {
+        return {};
+    }
+
+    auto const file = io::open(net::uri::from_file_path(path),
+                               io::in|io::binary);
     playlist_header head;
-    file.gather<LE>(head.magic, head.version, head.flags, head.size);
+    file->gather<LE>(head.magic, head.version, head.flags, head.size);
 
     if (AMP_UNLIKELY(!head.valid())) {
         raise(errc::failure, "invalid AMP playlist");
     }
 
     io::buffer buf{head.size, uninitialized};
-    io::buffer tmp{file, numeric_cast<std::size_t>(file.remain())};
+    io::buffer tmp{*file, numeric_cast<std::size_t>(file->remain())};
 
     auto const ret = ::LZ4_decompress_safe(
         reinterpret_cast<char const*>(tmp.data()),
@@ -201,18 +202,14 @@ ref_ptr<playlist> playlist::make(u8string p, uint32 const id)
 }
 
 playlist::playlist(u8string p, uint32 const id) :
-    ref_count_{1},
-    id_{id},
-    gen_order_{media::playback_order::linear},
-    position_{0},
     path_{std::move(p)},
+    tracks_{load_playlist_(path_)},
+    position_{0},
+    id_{id},
+    ref_count_{1},
+    gen_order_{media::playback_order::linear},
     unsaved_changes_{false}
 {
-    if (fs::exists(path_)) {
-        auto const file = io::open(net::uri::from_file_path(path_),
-                                   io::in|io::binary);
-        tracks_ = load_playlist_(*file);
-    }
 }
 
 playlist::size_type playlist::gen_position_(size_type pos, bool const forward)

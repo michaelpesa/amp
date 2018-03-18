@@ -26,6 +26,12 @@ namespace amp {
 namespace cue {
 namespace {
 
+[[noreturn]] void raise(char const* const msg)
+{
+    amp::raise(errc::failure, "cue sheet: %s", msg);
+}
+
+
 void verify_file_type(std::string_view const type)
 {
     if (!stricmpeq(type, "WAVE") &&
@@ -35,7 +41,7 @@ void verify_file_type(std::string_view const type)
         !stricmpeq(type, "FLAC") &&
         !stricmpeq(type, "WV")   &&
         !stricmpeq(type, "WAVPACK")) {
-        raise(errc::failure, "cue sheet: invalid file type");
+        cue::raise("invalid file type");
     }
 }
 
@@ -49,7 +55,7 @@ auto parse_length(std::string_view const text)
                  + cue::frames{ff};
         }
     }
-    raise(errc::failure, "cue sheet: invalid time syntax");
+    cue::raise("invalid time syntax");
 }
 
 auto parse_number(std::string_view const text)
@@ -58,7 +64,7 @@ auto parse_number(std::string_view const text)
     if (std::sscanf(text.data(), "%u", &number) == 1) {
         return number;
     }
-    raise(errc::failure, "cue sheet: invalid syntax");
+    cue::raise("invalid syntax");
 }
 
 void trim_whitespace(std::string_view& s,
@@ -85,7 +91,7 @@ auto read_string(std::string_view& line)
     if (line.size() >= 2 && line.front() == '\"') {
         pos = line.find('\"', 1);
         if (pos == line.npos) {
-            raise(errc::failure, "cue sheet: invalid syntax");
+            cue::raise("invalid syntax");
         }
         ret = {line.data() + 1, pos - 1};
         pos = pos + 1;
@@ -103,7 +109,7 @@ auto maybe_unquote(std::string_view s)
 {
     if (s.size() >= 2 && s.front() == '\"') {
         if (s.back() != '\"') {
-            raise(errc::failure, "cue sheet: invalid syntax");
+            cue::raise("invalid syntax");
         }
         s.remove_prefix(1);
         s.remove_suffix(1);
@@ -130,7 +136,6 @@ private:
     void on_flags(std::string_view);
     void on_comment(std::string_view, u8string);
 
-    void require_track_before_index(char const*) const;
     void commit_track();
 
     struct {
@@ -175,7 +180,7 @@ inline parser::parser(u8string text)
     }
 
     if (!current_track) {
-        raise(errc::failure, "cue sheet: must contain at least one track");
+        cue::raise("must contain at least one track");
     }
     commit_track();
     global_tags.emplace(tags::track_total, to_u8string(current_track.number));
@@ -190,7 +195,7 @@ inline void parser::commit_track()
 {
     AMP_ASSERT(current_track);
     if (current_track.index_count < 2) {
-        raise(errc::failure, "missing 'INDEX 01'");
+        cue::raise("missing 'INDEX 01'");
     }
 
     auto& t = tracks.emplace_back();
@@ -242,7 +247,7 @@ inline void parser::parse_line(std::string_view line)
         // ignore
     }
     else {
-        raise(errc::failure, "cue sheet: invalid command");
+        cue::raise("invalid command");
     }
 }
 
@@ -257,20 +262,19 @@ inline void parser::on_file(std::string_view const file,
 inline void parser::on_track(uint const number, std::string_view const type)
 {
     if (current_file.empty()) {
-        raise(errc::failure, "cue sheet: track cannot appear before file");
+        cue::raise("track cannot appear before file");
     }
 
     if (number < 1 || number > 99) {
-        raise(errc::failure, "cue sheet: invalid track number");
+        cue::raise("invalid track number");
     }
     if (!stricmpeq(type, "AUDIO")) {
-        raise(errc::failure, "cue sheet: invalid track type");
+        cue::raise("invalid track type");
     }
 
     if (current_track) {
         if (number != (current_track.number + 1)) {
-            raise(errc::failure,
-                  "cue sheet: track numbers must be in ascending order");
+            cue::raise("track numbers must be in ascending order");
         }
         commit_track();
     }
@@ -280,66 +284,62 @@ inline void parser::on_track(uint const number, std::string_view const type)
 inline void parser::on_index(uint const number, cue::frames const offset)
 {
     if (!current_track) {
-        raise(errc::failure, "cue sheet: index cannot occur before track");
+        cue::raise("index cannot occur before track");
     }
     if (last_index_offset != cue::frames::max()) {
         if (last_index_offset >= offset) {
-            raise(errc::failure,
-                  "cue sheet: index times must be in ascending order");
+            cue::raise("index times must be in ascending order");
         }
     }
     else {
         if (offset != cue::frames::zero()) {
-            raise(errc::failure,
-                  "cue sheet: first index of file must be zero");
+            cue::raise("first index of file must be zero");
         }
     }
     last_index_offset = offset;
 
     if (current_track.postgap != cue::frames::zero()) {
-        raise(errc::failure, "cue sheet postgap must occur before index");
+        cue::raise("postgap must occur before index");
     }
 
     if (number == 1 && current_track.index_count == 0) {
         current_track.index[current_track.index_count++] = offset;
     }
     else if (number != current_track.index_count || number > 99) {
-        raise(errc::failure, "invalid cue sheet track number");
+        cue::raise("sheet track number");
     }
     current_track.index[current_track.index_count++] = offset;
-}
-
-inline void parser::require_track_before_index(char const* const cmd) const
-{
-    if (!current_track || (current_track.index_count != 0)) {
-        raise(errc::failure,
-              "cue sheet: %s must occur before a track's index", cmd);
-    }
 }
 
 inline void parser::on_postgap(cue::frames const length)
 {
     if (!current_track) {
-        raise(errc::failure, "cue sheet: postgap must occur after track");
+        cue::raise("postgap must occur after track");
     }
     current_track.postgap = length;
 }
 
 inline void parser::on_pregap(cue::frames const length)
 {
-    require_track_before_index("PREGAP");
+    if (!current_track || (current_track.index_count != 0)) {
+        cue::raise("pregap must appear before track index");
+    }
     current_track.pregap = length;
 }
 
 inline void parser::on_isrc(std::string_view const text)
 {
-    require_track_before_index("ISRC");
+    if (!current_track || (current_track.index_count != 0)) {
+        cue::raise("isrc must appear before track index");
+    }
     current_track.tags.emplace(tags::isrc, text);
 }
 
 inline void parser::on_flags(std::string_view const text)
 {
-    require_track_before_index("FLAGS");
+    if (!current_track || (current_track.index_count != 0)) {
+        cue::raise("flags must appear before track index");
+    }
     (void) text;
 }
 

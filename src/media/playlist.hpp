@@ -9,7 +9,6 @@
 #define AMP_INCLUDED_6D040B4C_69A0_4793_BDBB_E8DB1F8E39AF
 
 
-#include <amp/error.hpp>
 #include <amp/ref_ptr.hpp>
 #include <amp/stddef.hpp>
 #include <amp/u8string.hpp>
@@ -17,6 +16,7 @@
 #include "media/track.hpp"
 
 #include <atomic>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -79,13 +79,10 @@ public:
 
     void position(size_type const pos)
     {
-        if (size() > pos) {
-            position_ = pos;
-            return;
+        if (AMP_UNLIKELY(pos >= size())) {
+            throw std::out_of_range("media::playlist::position");
         }
-        raise(errc::out_of_bounds,
-              "target position (%zu) equals or exceeds size (%zu)",
-              pos, size());
+        position_ = pos;
     }
 
     void reserve(size_type const n)
@@ -164,12 +161,12 @@ private:
         }
     }
 
-    mutable std::atomic<uint32> ref_count_;
-    uint32                      id_;
-    media::playback_order       gen_order_;
+    u8string                    path_;
     std::vector<media::track>   tracks_;
     size_type                   position_;
-    u8string                    path_;
+    uint32                      id_;
+    mutable std::atomic<uint32> ref_count_;
+    media::playback_order       gen_order_;
     bool                        unsaved_changes_;
 };
 

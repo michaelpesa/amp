@@ -25,7 +25,7 @@ namespace media {
 
 namespace tags {
 
-using namespace ::std::literals;
+using namespace std::literals;
 
 
 constexpr auto file_name    = "file name"sv;
