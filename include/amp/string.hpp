@@ -95,6 +95,20 @@ AMP_INLINE int stricmp(std::string_view const s1,
                    s2.data(), s2.size());
 }
 
+AMP_READONLY
+AMP_INLINE int stricmp(std::string_view const s1,
+                       char const* const s2) noexcept
+{
+    return stricmp(s1.data(), s2, s1.size());
+}
+
+AMP_READONLY
+AMP_INLINE int stricmp(char const* const s1,
+                       std::string_view const s2) noexcept
+{
+    return stricmp(s1, s2.data(), s2.size());
+}
+
 
 AMP_READONLY
 AMP_INLINE bool stricmpeq(char const* const s1,
@@ -126,6 +140,20 @@ AMP_INLINE bool stricmpeq(std::string_view const s1,
                      s2.data(), s2.size());
 }
 
+AMP_READONLY
+AMP_INLINE bool stricmpeq(std::string_view const s1,
+                          char const* const s2) noexcept
+{
+    return (stricmp(s1, s2) == 0);
+}
+
+AMP_READONLY
+AMP_INLINE bool stricmpeq(char const* const s1,
+                          std::string_view const s2) noexcept
+{
+    return (stricmp(s1, s2) == 0);
+}
+
 
 struct stricmp_less
 {
@@ -137,12 +165,12 @@ struct stricmp_less
     AMP_READONLY
     AMP_INLINE bool operator()(char const* const x,
                                std::string_view const y) const noexcept
-    { return (stricmp(x, y.data(), y.size()) < 0); }
+    { return (stricmp(x, y) < 0); }
 
     AMP_READONLY
     AMP_INLINE bool operator()(std::string_view const x,
                                char const* const y) const noexcept
-    { return (stricmp(x.data(), y, x.size()) < 0); }
+    { return (stricmp(x, y) < 0); }
 
     AMP_READONLY
     AMP_INLINE bool operator()(std::string_view const x,

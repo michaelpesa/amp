@@ -6,7 +6,6 @@
 
 
 #include <amp/audio/packet.hpp>
-#include <amp/bitops.hpp>
 #include <amp/media/dictionary.hpp>
 #include <amp/media/tags.hpp>
 #include <amp/numeric.hpp>
@@ -14,86 +13,14 @@
 #include <amp/stddef.hpp>
 
 #include "audio/replaygain.hpp"
-#include "core/cpu.hpp"
 
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
 
-#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
-# include <immintrin.h>
-#endif
-
 
 namespace amp {
 namespace audio {
-namespace {
-
-#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
-
-AMP_TARGET("sse")
-inline void process_sse(float* const data, std::size_t const n,
-                        float const scale) noexcept
-{
-    auto i = 0_sz;
-
-    AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
-    for (auto const last = align_down(n, 4); i != last; i += 4) {
-        auto v = _mm_load_ps(&data[i]);
-        v = _mm_mul_ps(v, _mm_set1_ps(scale));
-        v = _mm_max_ps(v, _mm_set1_ps(-1.f));
-        v = _mm_min_ps(v, _mm_set1_ps(+1.f));
-        _mm_storeu_ps(&data[i], v);
-    }
-
-    AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
-    for (; i != n; ++i) {
-        auto v = _mm_load_ss(&data[i]);
-        v = _mm_mul_ss(v, _mm_set_ss(scale));
-        v = _mm_max_ss(v, _mm_set_ss(-1.f));
-        v = _mm_min_ss(v, _mm_set_ss(+1.f));
-        _mm_store_ss(&data[i], v);
-    }
-}
-
-AMP_TARGET("avx")
-inline void process_avx(float* const data, std::size_t const n,
-                        float const scale) noexcept
-{
-    auto i = 0_sz;
-
-    AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
-    for (auto const last = align_down(n, 8); i != last; i += 8) {
-        auto v = _mm256_load_ps(&data[i]);
-        v = _mm256_mul_ps(v, _mm256_set1_ps(scale));
-        v = _mm256_max_ps(v, _mm256_set1_ps(-1.f));
-        v = _mm256_min_ps(v, _mm256_set1_ps(+1.f));
-        _mm256_storeu_ps(&data[i], v);
-    }
-
-    AMP_DISABLE_LOOP_UNROLLING_AND_VECTORIZATION
-    for (; i != n; ++i) {
-        auto v = _mm_load_ss(&data[i]);
-        v = _mm_mul_ss(v, _mm_set_ss(scale));
-        v = _mm_max_ss(v, _mm_set_ss(-1.f));
-        v = _mm_min_ss(v, _mm_set_ss(+1.f));
-        _mm_store_ss(&data[i], v);
-    }
-}
-
-#endif  // AMP_HAS_X86 || AMP_HAS_X64
-
-inline void process_generic(float* const data, std::size_t const n,
-                            float const scale) noexcept
-{
-    for (auto const i : xrange(n)) {
-        auto const x = data[i] * scale;
-        data[i] = (x < -1.f) ? -1.f : (x > 1.f) ? 1.f : x;
-    }
-}
-
-}     // namespace <unnamed>
-
 
 void replaygain_filter::process(audio::packet& pkt) const noexcept
 {
@@ -108,17 +35,12 @@ void replaygain_filter::process(audio::packet& pkt) const noexcept
 # pragma clang diagnostic pop
 #endif
 
-#if defined(AMP_HAS_X86) || defined(AMP_HAS_X64)
-    if (cpu::has_avx()) {
-        return process_avx(pkt.data(), pkt.size(), scale_);
+    auto const scale = scale_;
+    for (auto const i : xrange(pkt.size())) {
+        auto const x = pkt[i] * scale;
+        pkt[i] = (x < -1.f) ? -1.f : (x > 1.f) ? 1.f : x;
     }
-    if (cpu::has_sse()) {
-        return process_sse(pkt.data(), pkt.size(), scale_);
-    }
-#endif
-    return process_generic(pkt.data(), pkt.size(), scale_);
 }
-
 
 void replaygain_info::reset(media::dictionary const& dict)
 {

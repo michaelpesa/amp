@@ -43,14 +43,16 @@ void read_freeform(ilst_entry const& item, media::dictionary& tags)
         item.name != "iTunSMPB" &&
         item.name != "iTunNORM" &&
         item.name != "iTunMOVI") {
-        if (is_valid_utf8(item.str())) {
+        auto const str = reinterpret_cast<char const*>(item.data.data());
+        auto const len = item.data.size();
+        if (is_valid_utf8(str, len)) {
             tags.emplace(tags::map_common_key(item.name),
-                         u8string::from_utf8_unchecked(item.str()));
+                         u8string::from_utf8_unchecked(str, len));
         }
     }
 }
 
-void read_integer(u8string key, io::reader r, media::dictionary& tags)
+u8string read_integer(io::reader r)
 {
     uint32 x;
     if (r.remain() >= 4) {
@@ -59,46 +61,45 @@ void read_integer(u8string key, io::reader r, media::dictionary& tags)
     else {
         x = r.read<uint16,BE>();
     }
-    tags.emplace(std::move(key), to_u8string(x));
+    return to_u8string(x);
 }
 
-void read_pair(u8string key, io::reader r, media::dictionary& tags)
+u8string read_pair(io::reader r)
 {
     uint16 part;
     r.gather<BE>(io::ignore<2>, part);
 
-    u8string s;
+    char buf[16];
     if (auto const total = r.try_read<uint16,BE>()) {
-        s = u8format("%" PRIu16 "/%" PRIu16, part, *total);
+        std::snprintf(buf, sizeof(buf), "%d/%d", part, *total);
     }
     else {
-        s = u8format("%" PRIu16, part);
+        std::snprintf(buf, sizeof(buf), "%d", part);
     }
-    tags.emplace(std::move(key), std::move(s));
+    return u8string::from_utf8_unchecked(buf);
 }
 
-void read_boolean(u8string key, io::reader r, media::dictionary& tags)
+u8string read_boolean(io::reader r)
 {
     auto const value = (r.read<uint8>() != 0) ? "Yes" : "No";
-    tags.emplace(std::move(key), u8string::from_utf8_unchecked(value));
+    return u8string::from_utf8_unchecked(value);
 }
 
-void read_string(u8string key, io::reader r, media::dictionary& tags)
+u8string read_string(io::reader r)
 {
-    auto const s = reinterpret_cast<char const*>(r.peek());
-    tags.emplace(std::move(key), u8string::from_utf8(s, r.size()));
+    return u8string{reinterpret_cast<char const*>(r.peek()), r.size()};
 }
 
-void read_genre(u8string key, io::reader r, media::dictionary& tags)
+u8string read_genre(io::reader r)
 {
     auto index = r.read<uint16,BE>();
     if (--index <= std::numeric_limits<uint8>::max()) {
-        auto value = id3v1::get_genre_name(static_cast<uint8>(index));
-        tags.emplace(std::move(key), std::move(value));
+        return id3v1::get_genre_name(static_cast<uint8>(index));
     }
+    return {};
 }
 
-void read_rating(u8string key, io::reader r, media::dictionary& tags)
+u8string read_rating(io::reader r)
 {
     auto const value = [&]() -> char const* {
         switch (r.read<uint8>()) {
@@ -108,10 +109,7 @@ void read_rating(u8string key, io::reader r, media::dictionary& tags)
         }
         return nullptr;
     }();
-
-    if (value != nullptr) {
-        tags.emplace(std::move(key), u8string::from_utf8_unchecked(value));
-    }
+    return u8string::from_utf8_unchecked(value);
 }
 
 
@@ -127,68 +125,57 @@ enum class item_type : uint8 {
 
 struct ilst_parser
 {
-    std::string_view const key;
-    item_type const type;
+    std::string_view key;
+    u8string (*func)(io::reader);
 
     void read(io::reader r, media::dictionary& tags) const
     {
-        auto k = u8string::from_utf8_unchecked(key);
-        switch (type) {
-        case item_type::string:
-            return read_string(std::move(k), r, tags);
-        case item_type::integer:
-            return read_integer(std::move(k), r, tags);
-        case item_type::boolean:
-            return read_boolean(std::move(k), r, tags);
-        case item_type::pair:
-            return read_pair(std::move(k), r, tags);
-        case item_type::genre:
-            return read_genre(std::move(k), r, tags);
-        case item_type::rating:
-            return read_rating(std::move(k), r, tags);
+        auto value = func(r);
+        if (!value.empty()) {
+            tags.emplace(u8string::from_utf8_unchecked(key), std::move(value));
         }
     }
 };
 
 
 constexpr cxp::map<uint32, ilst_parser, 37> ilst_parsers {{
-    { "aART"_4cc,    { tags::album_artist,      item_type::string  } },
-    { "apID"_4cc,    { "iTunes Account ID",     item_type::string  } },
-    { "cnID"_4cc,    { "iTunes Catalog ID",     item_type::integer } },
-    { "cpil"_4cc,    { tags::compilation,       item_type::boolean } },
-    { "cprt"_4cc,    { tags::copyright,         item_type::string  } },
-    { "desc"_4cc,    { tags::description,       item_type::string  } },
-    { "disk"_4cc,    { tags::disc_number,       item_type::pair    } },
-    { "gnre"_4cc,    { tags::genre,             item_type::genre   } },
-    { "pcst"_4cc,    { tags::podcast,           item_type::boolean } },
-    { "pgap"_4cc,    { tags::gapless_album,     item_type::boolean } },
-    { "purd"_4cc,    { "iTunes Purchase Date",  item_type::string  } },
-    { "rtng"_4cc,    { "iTunes Content Rating", item_type::rating  } },
-    { "soaa"_4cc,    { tags::album_artist_sort, item_type::string  } },
-    { "soal"_4cc,    { tags::album_sort,        item_type::string  } },
-    { "soar"_4cc,    { tags::artist_sort,       item_type::string  } },
-    { "soco"_4cc,    { tags::composer_sort,     item_type::string  } },
-    { "sonm"_4cc,    { tags::title_sort,        item_type::string  } },
-    { "tmpo"_4cc,    { tags::bpm,               item_type::integer } },
-    { "trkn"_4cc,    { tags::track_number,      item_type::pair    } },
-    { "\251ART"_4cc, { tags::artist,            item_type::string  } },
-    { "\251PRD"_4cc, { tags::producer,          item_type::string  } },
-    { "\251alb"_4cc, { tags::album,             item_type::string  } },
-    { "\251cmt"_4cc, { tags::comment,           item_type::string  } },
-    { "\251com"_4cc, { tags::composer,          item_type::string  } },
-    { "\251cpy"_4cc, { tags::copyright,         item_type::string  } },
-    { "\251day"_4cc, { tags::date,              item_type::string  } },
-    { "\251enc"_4cc, { tags::encoder,           item_type::string  } },
-    { "\251gen"_4cc, { tags::genre,             item_type::string  } },
-    { "\251grp"_4cc, { tags::group,             item_type::string  } },
-    { "\251lyr"_4cc, { tags::lyrics,            item_type::string  } },
-    { "\251nam"_4cc, { tags::title,             item_type::string  } },
-    { "\251ope"_4cc, { tags::original_artist,   item_type::string  } },
-    { "\251prd"_4cc, { tags::producer,          item_type::string  } },
-    { "\251swr"_4cc, { tags::encoder,           item_type::string  } },
-    { "\251too"_4cc, { tags::encoded_by,        item_type::string  } },
-    { "\251wrt"_4cc, { tags::composer,          item_type::string  } },
-    { "\251xyz"_4cc, { tags::location,          item_type::string  } },
+    { "aART"_4cc,    { tags::album_artist,      read_string  } },
+    { "apID"_4cc,    { "iTunes Account ID",     read_string  } },
+    { "cnID"_4cc,    { "iTunes Catalog ID",     read_integer } },
+    { "cpil"_4cc,    { tags::compilation,       read_boolean } },
+    { "cprt"_4cc,    { tags::copyright,         read_string  } },
+    { "desc"_4cc,    { tags::description,       read_string  } },
+    { "disk"_4cc,    { tags::disc_number,       read_pair    } },
+    { "gnre"_4cc,    { tags::genre,             read_genre   } },
+    { "pcst"_4cc,    { tags::podcast,           read_boolean } },
+    { "pgap"_4cc,    { tags::gapless_album,     read_boolean } },
+    { "purd"_4cc,    { "iTunes Purchase Date",  read_string  } },
+    { "rtng"_4cc,    { "iTunes Content Rating", read_rating  } },
+    { "soaa"_4cc,    { tags::album_artist_sort, read_string  } },
+    { "soal"_4cc,    { tags::album_sort,        read_string  } },
+    { "soar"_4cc,    { tags::artist_sort,       read_string  } },
+    { "soco"_4cc,    { tags::composer_sort,     read_string  } },
+    { "sonm"_4cc,    { tags::title_sort,        read_string  } },
+    { "tmpo"_4cc,    { tags::bpm,               read_integer } },
+    { "trkn"_4cc,    { tags::track_number,      read_pair    } },
+    { "\251ART"_4cc, { tags::artist,            read_string  } },
+    { "\251PRD"_4cc, { tags::producer,          read_string  } },
+    { "\251alb"_4cc, { tags::album,             read_string  } },
+    { "\251cmt"_4cc, { tags::comment,           read_string  } },
+    { "\251com"_4cc, { tags::composer,          read_string  } },
+    { "\251cpy"_4cc, { tags::copyright,         read_string  } },
+    { "\251day"_4cc, { tags::date,              read_string  } },
+    { "\251enc"_4cc, { tags::encoder,           read_string  } },
+    { "\251gen"_4cc, { tags::genre,             read_string  } },
+    { "\251grp"_4cc, { tags::group,             read_string  } },
+    { "\251lyr"_4cc, { tags::lyrics,            read_string  } },
+    { "\251nam"_4cc, { tags::title,             read_string  } },
+    { "\251ope"_4cc, { tags::original_artist,   read_string  } },
+    { "\251prd"_4cc, { tags::producer,          read_string  } },
+    { "\251swr"_4cc, { tags::encoder,           read_string  } },
+    { "\251too"_4cc, { tags::encoded_by,        read_string  } },
+    { "\251wrt"_4cc, { tags::composer,          read_string  } },
+    { "\251xyz"_4cc, { tags::location,          read_string  } },
 }};
 static_assert(cxp::is_sorted(ilst_parsers), "");
 
@@ -205,14 +192,12 @@ media::dictionary movie::get_tags() const
     tags.reserve(ilst->size());
     for (auto&& item : *ilst) {
         if (!item.data.empty()) {
-            if (item.type == "----"_4cc) {
-                read_freeform(item, tags);
+            auto found = ilst_parsers.find(item.type);
+            if (found != ilst_parsers.end()) {
+                found->second.read(item.data, tags);
             }
-            else {
-                auto found = ilst_parsers.find(item.type);
-                if (found != ilst_parsers.end()) {
-                    found->second.read(item.data, tags);
-                }
+            else if (item.type == "----"_4cc) {
+                read_freeform(item, tags);
             }
         }
     }
@@ -221,9 +206,8 @@ media::dictionary movie::get_tags() const
 
 media::image movie::get_cover_art() const
 {
-    media::image image;
     if (!ilst) {
-        return image;
+        return {};
     }
 
     auto const covr = std::find_if(
@@ -231,21 +215,29 @@ media::image movie::get_cover_art() const
         [&](auto&& x) { return x.type == "covr"_4cc; });
 
     if (covr == ilst->cend()) {
-        return image;
+        return {};
     }
 
-    auto const mime_type = [&]() {
-        switch (covr->data_type) {
-        case 0x0d: return "image/jpeg";
-        case 0x0e: return "image/png";
-        case 0x1b: return "image/bmp";
-        }
-        raise(errc::invalid_data_format,
-              "invalid MP4 'covr' data type: %#" PRIx32, covr->data_type);
-    }();
+    char const* mime_type;
+    switch (covr->data_type) {
+    case 0x0d:
+        mime_type = "image/jpeg";
+        break;
+    case 0x0e:
+        mime_type = "image/png";
+        break;
+    case 0x1b:
+        mime_type = "image/bmp";
+        break;
+    default:
+        std::fprintf(stderr, "[MP4] invalid 'covr' data type: %#x",
+                     covr->data_type);
+        return {};
+    }
 
-    image.set_data(covr->data);
+    media::image image;
     image.set_mime_type(u8string::from_utf8_unchecked(mime_type));
+    image.set_data(covr->data);
     return image;
 }
 
@@ -263,7 +255,7 @@ optional<iTunSMPB> movie::get_iTunSMPB() const
         }
 
         iTunSMPB out;
-        auto const ret = std::sscanf(u8string{item.str()}.c_str(),
+        auto const ret = std::sscanf(read_string(item.data).c_str(),
                                      "%*8" SCNx32 " %8"  SCNx32
                                      " %8" SCNx32 " %16" SCNx64,
                                      &out.priming, &out.padding, &out.frames);

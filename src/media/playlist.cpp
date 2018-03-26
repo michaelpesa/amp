@@ -113,7 +113,7 @@ std::vector<media::track> unpack_playlist_(io::reader r)
         while (n-- != 0) {
             auto k = u8string::intern(r.read_pascal_string<uint32,LE>());
             auto v = u8string::intern(r.read_pascal_string<uint32,LE>());
-            d.emplace_hint_no_intern(d.cend(), std::move(k), std::move(v));
+            d.emplace_hint(d.cend(), std::move(k), std::move(v));
         }
     };
 

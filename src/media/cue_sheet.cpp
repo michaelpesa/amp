@@ -32,19 +32,6 @@ namespace {
 }
 
 
-void verify_file_type(std::string_view const type)
-{
-    if (!stricmpeq(type, "WAVE") &&
-        !stricmpeq(type, "AIFF") &&
-        !stricmpeq(type, "MP3")  &&
-        !stricmpeq(type, "APE")  &&
-        !stricmpeq(type, "FLAC") &&
-        !stricmpeq(type, "WV")   &&
-        !stricmpeq(type, "WAVPACK")) {
-        cue::raise("invalid file type");
-    }
-}
-
 auto parse_length(std::string_view const text)
 {
     uint mm, ss, ff;
@@ -170,7 +157,7 @@ private:
 };
 
 
-inline parser::parser(u8string text)
+parser::parser(u8string text)
 {
     for (auto line : tokenize(text, "\r\n")) {
         trim_whitespace(line);
@@ -191,7 +178,7 @@ inline parser::parser(u8string text)
     }
 }
 
-inline void parser::commit_track()
+void parser::commit_track()
 {
     AMP_ASSERT(current_track);
     if (current_track.index_count < 2) {
@@ -205,7 +192,7 @@ inline void parser::commit_track()
     t.tags.emplace(tags::track_number, to_u8string(current_track.number));
 }
 
-inline void parser::parse_line(std::string_view line)
+void parser::parse_line(std::string_view line)
 {
     auto const cmd = read_token(line);
     if (stricmpeq(cmd, "CATALOG")   ||
@@ -251,15 +238,20 @@ inline void parser::parse_line(std::string_view line)
     }
 }
 
-inline void parser::on_file(std::string_view const file,
-                            std::string_view const type)
+void parser::on_file(std::string_view const file, std::string_view const type)
 {
-    verify_file_type(type);
+    if (!stricmpeq(type, "WAVE") && !stricmpeq(type, "MP3") &&
+        !stricmpeq(type, "AIFF") && !stricmpeq(type, "APE") &&
+        !stricmpeq(type, "FLAC") && !stricmpeq(type, "WV") &&
+        !stricmpeq(type, "WAVPACK")) {
+        cue::raise("invalid file type");
+    }
+
     current_file = file;
     last_index_offset = cue::frames::max();
 }
 
-inline void parser::on_track(uint const number, std::string_view const type)
+void parser::on_track(uint const number, std::string_view const type)
 {
     if (current_file.empty()) {
         cue::raise("track cannot appear before file");
@@ -281,7 +273,7 @@ inline void parser::on_track(uint const number, std::string_view const type)
     current_track.reset(current_file, number);
 }
 
-inline void parser::on_index(uint const number, cue::frames const offset)
+void parser::on_index(uint const number, cue::frames const offset)
 {
     if (!current_track) {
         cue::raise("index cannot occur before track");
@@ -311,7 +303,7 @@ inline void parser::on_index(uint const number, cue::frames const offset)
     current_track.index[current_track.index_count++] = offset;
 }
 
-inline void parser::on_postgap(cue::frames const length)
+void parser::on_postgap(cue::frames const length)
 {
     if (!current_track) {
         cue::raise("postgap must occur after track");
@@ -319,7 +311,7 @@ inline void parser::on_postgap(cue::frames const length)
     current_track.postgap = length;
 }
 
-inline void parser::on_pregap(cue::frames const length)
+void parser::on_pregap(cue::frames const length)
 {
     if (!current_track || (current_track.index_count != 0)) {
         cue::raise("pregap must appear before track index");
@@ -327,7 +319,7 @@ inline void parser::on_pregap(cue::frames const length)
     current_track.pregap = length;
 }
 
-inline void parser::on_isrc(std::string_view const text)
+void parser::on_isrc(std::string_view const text)
 {
     if (!current_track || (current_track.index_count != 0)) {
         cue::raise("isrc must appear before track index");
@@ -335,7 +327,7 @@ inline void parser::on_isrc(std::string_view const text)
     current_track.tags.emplace(tags::isrc, text);
 }
 
-inline void parser::on_flags(std::string_view const text)
+void parser::on_flags(std::string_view const text)
 {
     if (!current_track || (current_track.index_count != 0)) {
         cue::raise("flags must appear before track index");
@@ -343,9 +335,9 @@ inline void parser::on_flags(std::string_view const text)
     (void) text;
 }
 
-inline void parser::on_comment(std::string_view const name, u8string value)
+void parser::on_comment(std::string_view const name, u8string value)
 {
-    auto key = [&]() -> u8string {
+    auto key = [&]{
         if (stricmpeq(name, "PERFORMER")) {
             if (current_track && !various_artists) {
                 auto found = global_tags.find(tags::artist);
@@ -354,10 +346,10 @@ inline void parser::on_comment(std::string_view const name, u8string value)
                     various_artists = true;
                 }
             }
-            return tags::artist;
+            return u8string{tags::artist};
         }
         if (stricmpeq(name, "TITLE")) {
-            return (current_track ? tags::title : tags::album);
+            return u8string{current_track ? tags::title : tags::album};
         }
         return tags::map_common_key(name);
     }();

@@ -25,7 +25,6 @@
 #include <cstdlib>
 #include <memory>
 #include <new>
-#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -110,6 +109,7 @@ public:
     T const& back() const noexcept
     { return data()[size() - 1]; }
 
+    // FIXME: this should not be called resize
     void resize(uint32 const n)
     {
         static_assert(is_trivially_constructible_v<T>, "");
@@ -368,9 +368,6 @@ struct ilst_entry
     u8string   mean;
     u8string   name;
     io::buffer data;
-
-    std::string_view str() const noexcept
-    { return {reinterpret_cast<char const*>(data.data()), data.size()}; }
 };
 
 using ilst_box_data = std::vector<ilst_entry>;

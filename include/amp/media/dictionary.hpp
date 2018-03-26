@@ -355,37 +355,9 @@ public:
         }
     }
 
-    template<
-        typename V,
-        typename = enable_if_t<is_convertible_v<V, value_type>>
-    >
-    iterator insert_no_intern(const_iterator hint, V&& v)
-    {
-        if (hint == cend() || !value_comp()(*hint, v)) {
-            if (hint != cbegin() && value_comp()(v, hint[-1])) {
-                hint = std::upper_bound(cbegin(), hint, v, value_comp());
-            }
-        }
-        else {
-            hint = std::lower_bound(hint, cend(), v, value_comp());
-        }
-        return insert_at_no_intern_(const_cast<iterator>(hint),
-                                    std::forward<V>(v));
-    }
-
-    iterator insert_no_intern(const_iterator const hint, value_type const& v)
-    { return insert_no_intern<value_type const&>(hint, v); }
-
-    iterator insert_no_intern(const_iterator const hint, value_type&& v)
-    { return insert_no_intern<value_type&&>(hint, std::move(v)); }
-
-    template<typename... Args>
-    iterator emplace_hint_no_intern(const_iterator const hint, Args&&... args)
-    { return insert_no_intern(hint, value_type(std::forward<Args>(args)...)); }
-
 private:
     template<typename V>
-    iterator insert_at_no_intern_(iterator pos, V&& v)
+    iterator insert_at_(iterator pos, V&& v)
     {
         if (size() == capacity()) {
             auto const offset = std::distance(begin(), pos);
@@ -399,15 +371,6 @@ private:
 
         ::new(static_cast<void*>(pos)) value_type(std::forward<V>(v));
         size_ += 1;
-        return pos;
-    }
-
-    template<typename V>
-    iterator insert_at_(iterator pos, V&& v)
-    {
-        pos = insert_at_no_intern_(pos, std::forward<V>(v));
-        pos->first.intern();
-        pos->second.intern();
         return pos;
     }
 
