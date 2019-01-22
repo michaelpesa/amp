@@ -5,7 +5,7 @@ project(amp)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/contrib")
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/../Qt/5.9.1/clang_64")
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/../Qt/5.11.2/clang_64")
 
 
 option(AMP_ENABLE_LTO "Enable link time optimization" OFF)

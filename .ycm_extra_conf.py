@@ -41,7 +41,7 @@ flags = [
 '-DQT_NO_KEYWORDS',
 '-DQT_NO_CAST_FROM_ASCII',
 '-DQT_NO_CAST_TO_ASCII',
-'-F','../Qt/5.9.1/clang_64/lib',
+'-F','../Qt/5.11.2/clang_64/lib',
 '-I','include',
 '-I','src',
 '-isystem','contrib/include',
